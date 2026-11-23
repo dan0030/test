@@ -693,6 +693,10 @@ export function renderEdit(root, id) {
         <div class="panel"><h4>${icon('id-card', 15)} 프로필 표</h4>
           ${colorBtn('theme.profile.headBg', '머리 배경', T.profile?.headBg)}${colorBtn('theme.profile.headFg', '머리 글자', T.profile?.headFg)}${colorBtn('theme.profile.labelBg', '항목 배경', T.profile?.labelBg)}${colorBtn('theme.profile.labelFg', '항목 글자', T.profile?.labelFg)}${colorBtn('theme.profile.valueBg', '내용 배경', T.profile?.valueBg)}${colorBtn('theme.profile.border', '테두리', T.profile?.border)}</div>
         <div class="panel"><h4>${icon('list-tree', 15)} 목차 · 인용구</h4>
+          <label class="lbl"><span>목차 넓이</span><b id="toc-wv">${+T.toc?.width ? `${T.toc.width}px` : '자동'}</b></label>
+          <div class="seg full" id="toc-mode"><button data-v="auto" class="${+T.toc?.width ? '' : 'on'}">자동 (남는 폭 채우기)</button><button data-v="fixed" class="${+T.toc?.width ? 'on' : ''}">직접 지정</button></div>
+          <input type="range" min="200" max="700" step="10" id="toc-w" value="${+T.toc?.width || 320}" ${+T.toc?.width ? '' : 'disabled'} aria-label="목차 넓이">
+          <p class="muted small">좁은 화면에서는 자동으로 화면 폭에 맞춰져요.</p>
           ${colorBtn('theme.toc.headBg', '목차 머리 배경', T.toc?.headBg)}${colorBtn('theme.toc.headFg', '목차 머리 글자', T.toc?.headFg)}${colorBtn('theme.quote.accent', '인용구 막대', T.quote?.accent)}${colorBtn('theme.quote.bg', '인용구 배경', T.quote?.bg)}
           <label class="check"><input type="checkbox" id="fn-col" ${T.footnote?.collapsed ? 'checked' : ''}><span>각주 목록 접어두기</span></label></div>`;
       return;
@@ -756,6 +760,8 @@ export function renderEdit(root, id) {
     }
     if (e.target.closest('#pf-url')) { const u = await promptBox('이미지 주소', 'https://'); if (u) { const s = R.safeUrl(u); if (!s) return toast('주소를 확인해주세요', 'error'); pf.image = s; rerender(); } return; }
     if (e.target.closest('#pf-del')) { pf.image = ''; pf.imageCaption = ''; rerender(); return; }
+    const tm = e.target.closest('#toc-mode [data-v]');
+    if (tm) { model.theme.toc = { ...(model.theme.toc || {}), width: tm.dataset.v === 'auto' ? 0 : (+side.querySelector('#toc-w').value || 320) }; rerender(); return; }
     const al = e.target.closest('#pf-align [data-v]');
     if (al) { model.theme.profile = { ...(model.theme.profile || {}), align: al.dataset.v }; rerender(); return; }
     const g = e.target.closest('.pg'); const grp = g && findGroup(g.dataset.g);
@@ -797,6 +803,7 @@ export function renderEdit(root, id) {
     if (el.id === 'pf-cap') { model.profile.imageCaption = esc(el.value); rerender(); return; }
     if (el.matches('[data-gk]')) { const grp = findGroup(el.closest('.pg').dataset.g); grp.kind = el.value; rerender(); return; }
     if (el.matches('[data-gt]')) { const grp = findGroup(el.closest('.pg').dataset.g); grp.title = esc(el.value); rerender(); return; }
+    if (el.id === 'toc-w') { model.theme.toc = { ...(model.theme.toc || {}), width: +el.value }; rerender(); return; }
     if (el.id === 'pf-w') { model.theme.profile = { ...(model.theme.profile || {}), width: +el.value }; rerender(); return; }
     if (el.id === 'fn-col') { model.theme.footnote = { ...(model.theme.footnote || {}), collapsed: el.checked }; rerender(); return; }
     if (el.id === 'm-cat') { update(it.id, { category: el.value }, { silent: true }); return; }
@@ -804,6 +811,11 @@ export function renderEdit(root, id) {
   });
   side.addEventListener('input', (e) => {
     if (e.target.id === 'pf-w') root.querySelector('#pf-wv').textContent = `${e.target.value}px`;
+    if (e.target.id === 'toc-w') {
+      root.querySelector('#toc-wv').textContent = `${e.target.value}px`;
+      const box = elDoc.querySelector('.nw-toc'); // 놓기 전에도 바로 미리보기
+      if (box) { box.style.flex = `0 1 ${e.target.value}px`; box.style.width = `min(100%, ${e.target.value}px)`; }
+    }
     if (e.target.matches('[data-rl]')) { const i = +e.target.closest('.rel-row').dataset.i; update(it.id, (d) => { d.relations[i].label = e.target.value; return d; }, { silent: true }); }
   });
   side.addEventListener('keydown', (e) => {
