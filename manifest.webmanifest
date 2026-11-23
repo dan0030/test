@@ -1,0 +1,11 @@
+{
+  "name": "O-note",
+  "short_name": "O-note",
+  "description": "오타쿠를 위한 자료 모음 & 메모장",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f7fb",
+  "theme_color": "#7b6cf6",
+  "lang": "ko",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
