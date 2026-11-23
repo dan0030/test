@@ -1,6 +1,7 @@
 // 글 연성: 회차별 작성 + E북 리더
 import { all, get, create, update } from '../store.js';
-import { icon, esc, sanitize, htmlToText, countText, emptyState, toast, compressImage, pickFile, promptBox, confirmBox, modal, $ } from '../ui.js';
+import { saveImage } from '../images.js';
+import { bgAttrs, icon, esc, sanitize, htmlToText, countText, emptyState, toast, pickFile, promptBox, confirmBox, modal, $ } from '../ui.js';
 import { createEditor } from '../editor.js';
 import { itemCard, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openExport } from '../export.js';
@@ -29,7 +30,7 @@ function storyCard(it) {
   const d = it.data;
   const chars = (d.chapters || []).reduce((n, c) => n + countText(htmlToText(c.html)).noSpace, 0);
   return `<div class="card story-card">
-    <a href="#/s/${it.id}" class="sc-cover" style="${d.cover ? `background-image:url('${esc(d.cover)}')` : ''}">${d.cover ? '' : icon('book-open', 34)}</a>
+    <a href="#/s/${it.id}" class="sc-cover" ${d.cover ? bgAttrs(d.cover) : ''}>${d.cover ? '' : icon('book-open', 34)}</a>
     <div class="sc-body">
       <span class="chip">${esc(d.status || STATUS[0])}</span>${d.bookmarked ? `<span class="star">${icon('bookmark', 14)}</span>` : ''}
       <h4><a href="#/s/${it.id}">${esc(d.title || '제목 없음')}</a></h4>
@@ -144,7 +145,7 @@ export function renderEdit(root, id, q) {
   root.querySelector('#s-goal').addEventListener('input', (e) => { update(it.id, { goal: +e.target.value || 0 }, { silent: true }); drawGoal(); });
   root.querySelector('#s-cover').onclick = async () => {
     const f = await pickFile(); if (!f) return;
-    try { update(it.id, { cover: await compressImage(f, 600) }, { silent: true }); toast('표지를 바꿨어요', 'ok'); } catch (e) { toast(e.message, 'error'); }
+    try { toast('표지를 올리는 중…'); update(it.id, { cover: await saveImage(f, 'cover') }, { silent: true }); toast('표지를 바꿨어요', 'ok'); } catch (e) { toast(e.message, 'error'); }
   };
   bindFolderPicker(root, it, () => { ed.flush(); renderEdit(root, id, q); });
   bindTags(root, it);

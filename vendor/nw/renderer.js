@@ -758,7 +758,7 @@
     }
     if (pf.image) {
       inner += '<div style="border-top:1px solid ' + P.border + ';background:' + BASE.white + ';text-align:center;line-height:0;">' +
-                 '<img src="' + attr(safeUrl(pf.image)) + '" alt="' + attr(plainText(pf.title) || '프로필 이미지') + '" loading="lazy" style="display:block;width:100%;height:auto;margin:0;">' +
+                 '<img ' + (/^oimg:/.test(pf.image) ? 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-src="' + attr(pf.image) + '"' : 'src="' + attr(safeUrl(pf.image)) + '"') + ' alt="' + attr(plainText(pf.title) || '프로필 이미지') + '" loading="lazy" style="display:block;width:100%;height:auto;margin:0;">' +
                  (pf.imageCaption ? '<div class="nw-pf-caption"' + (ed ? ' contenteditable="true" data-pf="imageCaption"' : '') + ' style="position:relative;padding:7px 10px;font-size:.84em;line-height:1.6;outline:0;color:' + BASE.sub + ';border-top:1px solid ' + P.border + ';">' + ctx.pipe(pf.imageCaption, true) + '</div>' : '') +
                '</div>';
     }

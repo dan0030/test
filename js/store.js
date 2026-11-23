@@ -1,5 +1,7 @@
 // 데이터 저장소: 클라우드(Supabase) 또는 체험(로컬) 모드
-import { encryptJSON, decryptJSON, makeVault, openVault, rememberKey, recallKey, forgetKey } from './crypto.js';
+import { decryptJSON, makeVault, openVault, rememberKey, recallKey, forgetKey } from './crypto.js';
+import { pack, unpack } from './codec.js';
+import * as cache from './cache.js';
 
 const LOCAL_KEY = 'onote-local-v1';
 const listeners = new Set();
@@ -12,6 +14,11 @@ export const store = {
   vault: null, // { id, data, key }
   locked: false,
   rawRows: [],
+  srv: new Map(), // id → 서버에 저장된 행(압축·암호화 상태) — 기기 캐시와 증분 동기화용
+  types: new Map(), // 삭제 대기 중인 항목의 종류
+  lastSync: null,
+  lastPull: 0,
+  quotaHit: false,
   status: 'saved', // saved | saving | error | offline
   dirty: new Set(),
   deleted: new Set(),
@@ -46,10 +53,15 @@ export async function initCloud(sb, user) {
   store.items.clear();
   store.dirty.clear();
   store.deleted.clear();
-  const { data, error } = await sb.from('items').select('id,type,data,created_at,updated_at').order('updated_at', { ascending: false });
-  if (error) throw error;
-  const vaultRow = data.find((r) => r.type === 'vault');
-  store.rawRows = data.filter((r) => r.type !== 'vault');
+  store.srv.clear();
+  // 1) 이 기기에 저장된 사본 먼저 읽기 → 2) 서버에서 바뀐 것만 받기 (처음이면 전체)
+  const cached = cache.cacheEnabled() ? await cache.loadRows(user.id) : { rows: [], lastSync: null };
+  cached.rows.forEach((r) => store.srv.set(r.id, r));
+  store.lastSync = cached.lastSync || null;
+  store.lastPurge = cached.lastPurge || null;
+  await syncDown(true);
+  const vaultRow = [...store.srv.values()].find((r) => r.type === 'vault');
+  store.rawRows = [...store.srv.values()].filter((r) => r.type !== 'vault');
   if (vaultRow) {
     store.vault = { id: vaultRow.id, data: vaultRow.data, key: null };
     const key = await recallKey(user.id);
@@ -63,7 +75,48 @@ export async function initCloud(sb, user) {
     store.vault = null;
     await hydrate();
   }
+  purgeTombstones();
   emit();
+}
+
+const CHUNK = 100;
+// 서버 → 기기: lastSync 이후 바뀐 행만 (목록은 가볍게 받고, 내용은 실제로 바뀐 행만 받음)
+async function syncDown(initial = false) {
+  const sb = store.sb;
+  let changedIds = []; let removed = []; let maxTs = store.lastSync;
+  if (!store.lastSync) {
+    const { data, error } = await sb.from('items').select('id,type,data,created_at,updated_at').eq('deleted', false);
+    if (error) throw error;
+    store.srv.clear();
+    data.forEach((r) => { store.srv.set(r.id, r); if (!maxTs || r.updated_at > maxTs) maxTs = r.updated_at; });
+    changedIds = data.map((r) => r.id);
+  } else {
+    // 같은 시각에 커밋된 행을 놓치지 않도록 몇 초 겹쳐서 조회 (겹친 행은 아래에서 걸러짐)
+    const since = new Date(new Date(store.lastSync).getTime() - 3000).toISOString();
+    const { data, error } = await sb.from('items').select('id,updated_at,deleted').gte('updated_at', since);
+    if (error) throw error;
+    const need = [];
+    data.forEach((r) => {
+      if (!maxTs || r.updated_at > maxTs) maxTs = r.updated_at;
+      const cur = store.srv.get(r.id);
+      if (r.deleted) { if (cur) { store.srv.delete(r.id); removed.push(r.id); } return; }
+      if (!cur || cur.updated_at !== r.updated_at) need.push(r.id);
+    });
+    for (let k = 0; k < need.length; k += CHUNK) {
+      const { data: rows, error: e2 } = await sb.from('items').select('id,type,data,created_at,updated_at').in('id', need.slice(k, k + CHUNK));
+      if (e2) throw e2;
+      rows.forEach((r) => store.srv.set(r.id, r));
+    }
+    changedIds = need;
+  }
+  // 빈 계정이라 기준 시각이 없으면 처음부터를 기준으로 (다음부터는 목록만 가볍게 비교)
+  store.lastSync = maxTs || '1970-01-01T00:00:00.000Z';
+  maxTs = store.lastSync;
+  if (cache.cacheEnabled()) {
+    if (initial && !changedIds.length && !removed.length) await cache.putRows(store.user.id, [], [], { lastSync: maxTs });
+    else await cache.putRows(store.user.id, changedIds.map((id) => store.srv.get(id)).filter(Boolean), removed, { lastSync: maxTs });
+  }
+  return { changedIds, removed };
 }
 
 async function checkKey(key) {
@@ -71,11 +124,7 @@ async function checkKey(key) {
 }
 
 async function decodeRow(r) {
-  let d = r.data;
-  if (d && d.__enc) {
-    if (!store.vault?.key) throw new Error('locked');
-    d = await decryptJSON(store.vault.key, d);
-  }
+  const d = await unpack(r.data, store.vault?.key);
   return { id: r.id, type: r.type, data: d || {}, created_at: r.created_at, updated_at: r.updated_at, _srv: r.updated_at };
 }
 
@@ -86,6 +135,16 @@ async function hydrate() {
   }
   store.rawRows = [];
   store.locked = false;
+}
+
+// 30일 지난 삭제 흔적(tombstone)을 하루 한 번 정리
+async function purgeTombstones() {
+  const day = new Date().toISOString().slice(0, 10);
+  if (store.lastPurge === day) return;
+  store.lastPurge = day;
+  const old = new Date(Date.now() - 30 * 86400000).toISOString();
+  try { await store.sb.from('items').delete().eq('deleted', true).lt('updated_at', old); } catch { /* 다음에 */ }
+  if (cache.cacheEnabled()) cache.putRows(store.user.id, [], [], { lastPurge: day });
 }
 
 export async function unlock(passphrase, remember) {
@@ -120,13 +179,18 @@ export function create(type, data = {}) {
 export function update(id, patch, { silent = false } = {}) {
   const it = store.items.get(id);
   if (!it) return;
+  // 실제로 바뀐 게 없으면 저장하지 않음 (불필요한 쓰기·다른 기기 다운로드 방지)
+  const before = JSON.stringify(it.data);
   it.data = typeof patch === 'function' ? patch(it.data) || it.data : { ...it.data, ...patch };
+  if (JSON.stringify(it.data) === before) return;
   it.updated_at = now();
   markDirty(id);
   if (!silent) emit();
 }
 
 export function remove(id) {
+  const it = store.items.get(id);
+  if (it) store.types.set(id, it.type);
   store.items.delete(id);
   store.dirty.delete(id);
   store.deleted.add(id);
@@ -160,6 +224,7 @@ export async function flush() {
     return;
   }
   if (!navigator.onLine) { setStatus('offline'); return; }
+  if (store.locked) return;
   const ids = [...store.dirty];
   const dels = [...store.deleted];
   try {
@@ -168,54 +233,58 @@ export async function flush() {
       for (const id of ids) {
         const it = store.items.get(id);
         if (!it) continue;
-        const data = store.vault?.key ? await encryptJSON(store.vault.key, it.data) : it.data;
-        rows.push({ id, type: it.type, data });
+        rows.push({ id, type: it.type, data: await pack(it.data, store.vault?.key), deleted: false });
       }
       ids.forEach((id) => store.dirty.delete(id));
-      if (rows.length) {
-        const { data, error } = await store.sb.from('items').upsert(rows).select('id,updated_at');
-        if (error) { ids.forEach((id) => store.dirty.add(id)); throw error; }
-        data.forEach((r) => { const it = store.items.get(r.id); if (it) it._srv = r.updated_at; });
+      for (let k = 0; k < rows.length; k += 50) {
+        const part = rows.slice(k, k + 50);
+        const { data, error } = await store.sb.from('items').upsert(part).select('id,updated_at,created_at');
+        if (error) { ids.forEach((id) => { if (store.items.has(id)) store.dirty.add(id); }); throw error; }
+        const cached = [];
+        data.forEach((r) => {
+          const it = store.items.get(r.id); if (it) it._srv = r.updated_at;
+          const sent = part.find((x) => x.id === r.id);
+          const row = { id: r.id, type: sent.type, data: sent.data, created_at: r.created_at, updated_at: r.updated_at };
+          store.srv.set(r.id, row); cached.push(row);
+        });
+        if (cache.cacheEnabled()) cache.putRows(store.user.id, cached);
       }
+      store.quotaHit = false;
     }
     if (dels.length) {
-      const { error } = await store.sb.from('items').delete().in('id', dels);
+      // 소프트 삭제: 다른 기기가 '지워졌다'는 사실을 가볍게 알 수 있도록 흔적만 남김 (30일 뒤 정리)
+      const { error } = await store.sb.from('items').update({ deleted: true, data: {} }).in('id', dels);
       if (error) throw error;
-      dels.forEach((id) => store.deleted.delete(id));
+      dels.forEach((id) => { store.deleted.delete(id); store.srv.delete(id); });
+      if (cache.cacheEnabled()) cache.putRows(store.user.id, [], dels);
     }
     setStatus(store.dirty.size ? 'saving' : 'saved');
     if (store.dirty.size) schedule();
   } catch (e) {
     console.error(e);
-    setStatus('error');
+    const quota = /quota_exceeded/.test(`${e.message} ${e.details || ''} ${e.hint || ''}`);
+    if (quota && !store.quotaHit) { store.quotaHit = true; emit('quota'); }
+    setStatus(quota ? 'quota' : 'error');
     clearTimeout(store.timer);
-    store.timer = setTimeout(flush, 5000); // 재시도
+    store.timer = setTimeout(flush, quota ? 60000 : 5000); // 재시도
   }
 }
 
-// 다른 기기/브라우저에서 바뀐 내용 가져오기
-export async function pull() {
+// 다른 기기/브라우저에서 바뀐 내용 가져오기 (바뀐 행만, 너무 자주 묻지 않음)
+export async function pull({ force = false } = {}) {
   if (store.mode !== 'cloud' || store.locked || !navigator.onLine) return;
-  const { data, error } = await store.sb.from('items').select('id,updated_at,type');
-  if (error) return;
-  const serverIds = new Set();
-  const changed = [];
-  for (const r of data) {
-    if (r.type === 'vault') continue;
-    serverIds.add(r.id);
-    const loc = store.items.get(r.id);
-    if (store.dirty.has(r.id)) continue;
-    if (!loc || loc._srv !== r.updated_at) changed.push(r.id);
-  }
+  if (!force && Date.now() - store.lastPull < 30000) return;
+  store.lastPull = Date.now();
+  let res;
+  try { res = await syncDown(); } catch { return; }
   let touched = false;
-  for (const [id] of store.items) {
-    if (!serverIds.has(id) && !store.dirty.has(id)) { store.items.delete(id); touched = true; }
-  }
-  if (changed.length) {
-    const { data: rows } = await store.sb.from('items').select('id,type,data,created_at,updated_at').in('id', changed);
-    for (const r of rows || []) {
-      try { store.items.set(r.id, await decodeRow(r)); touched = true; } catch { /* 키 불일치 */ }
-    }
+  for (const id of res.removed) { if (!store.dirty.has(id) && store.items.delete(id)) touched = true; }
+  for (const id of res.changedIds) {
+    const r = store.srv.get(id);
+    if (!r || r.type === 'vault' || store.dirty.has(id)) continue;
+    const loc = store.items.get(id);
+    if (loc && loc._srv === r.updated_at) continue;
+    try { store.items.set(id, await decodeRow(r)); touched = true; } catch { /* 키 불일치 */ }
   }
   if (touched) emit('remote');
 }
@@ -239,7 +308,9 @@ export async function disableVault() {
   store.vault = null;
   store.items.forEach((_, iid) => store.dirty.add(iid));
   await flush();
-  await store.sb.from('items').delete().eq('id', vid);
+  await store.sb.from('items').update({ deleted: true, data: {} }).eq('id', vid);
+  store.srv.delete(vid);
+  if (cache.cacheEnabled()) cache.putRows(store.user.id, [], [vid]);
   await forgetKey(store.user.id);
   emit();
 }
@@ -272,6 +343,7 @@ export function importAll(json, { replace = false } = {}) {
 }
 
 export function clearLocal() { localStorage.removeItem(LOCAL_KEY); }
+export const clearDeviceCache = () => cache.clearAll();
 
 // ---------------- 사용자 설정 (계정에 저장: 내 팔레트, 분류 목록 등) ----------------
 export const DEFAULT_CATS = {

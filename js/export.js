@@ -1,4 +1,5 @@
 // 내보내기: 티스토리·포스타입 등 외부 플랫폼에 옮기기 쉬운 HTML / 이미지 / 텍스트
+import { inlineImages } from './images.js';
 import { sanitize, htmlToText, esc, download, safeName, modal, toast, icon } from './ui.js';
 
 const THEMES = {
@@ -82,7 +83,8 @@ export async function exportImages(html, name, { width = 720, split = 0 } = {}) 
 }
 
 // 내보내기 대화상자
-export function openExport({ title, subtitle = '', html }) {
+export async function openExport({ title, subtitle = '', html }) {
+  html = await inlineImages(html); // 저장소 이미지를 실제 이미지로 바꿔 외부에서도 보이게
   const body = `
     <div class="exp-grid">
       <div>

@@ -1,6 +1,7 @@
 // O-note 자체 리치 텍스트 에디터 (한글/포스타입 스타일, 모바일 대응)
 import { openColorPopover } from './colors.js';
-import { icon, esc, sanitize, htmlToText, countText, modal, toast, compressImage, pickFile, debounce, $ } from './ui.js';
+import { saveImage, uploadDomImages } from './images.js';
+import { icon, esc, sanitize, htmlToText, countText, modal, toast, pickFile, debounce, imgAttrs, $ } from './ui.js';
 
 const TEXT_COLORS = ['#222222', '#666666', '#b0b0b0', '#e5484d', '#f76b15', '#d6a100', '#30a46c', '#0090ff', '#3e63dd', '#8e4ec6', '#d6409f', '#ffffff'];
 const HL_COLORS = ['transparent', '#ffe8a3', '#ffd1dc', '#d7f5c9', '#cde9ff', '#e6dcff', '#ffd9b8', '#eeeeee'];
@@ -100,13 +101,14 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
     }
     document.execCommand('insertHTML', false, h);
     changed();
+    if (/<img[^>]+src="data:image/.test(h)) uploadDomImages(area).then((n) => { if (n) changed(); });
   });
 
   area.addEventListener('drop', async (e) => {
     const f = e.dataTransfer?.files?.[0];
     if (f && f.type.startsWith('image/')) {
       e.preventDefault();
-      try { const url = await compressImage(f); document.execCommand('insertHTML', false, `<img src="${url}" alt="">`); changed(); } catch (err) { toast(err.message, 'error'); }
+      try { const ref = await saveImage(f, 'content'); document.execCommand('insertHTML', false, `<img ${imgAttrs(ref)} alt="">`); changed(); } catch (err) { toast(err.message, 'error'); }
     }
   });
 
@@ -147,7 +149,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
         saveSel();
         const f = await pickFile('image/*');
         if (!f) return;
-        try { const url = await compressImage(f); exec('insertHTML', `<img src="${url}" alt="">`); } catch (err) { toast(err.message, 'error'); }
+        try { toast('이미지를 올리는 중…'); const ref = await saveImage(f, 'content'); exec('insertHTML', `<img ${imgAttrs(ref)} alt="">`); } catch (err) { toast(err.message, 'error'); }
         return;
       }
       case 'link': {

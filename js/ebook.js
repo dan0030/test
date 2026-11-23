@@ -4,6 +4,7 @@
 // - 넘기기: 스와이프/가로 스크롤(스크립트 없이 동작) + 선택형 이전·다음 버튼 스크립트
 import { sanitize, esc, modal, icon, toast, download, safeName, htmlToText } from './ui.js';
 import { copyText, exportImages } from './export.js';
+import { inlineImages } from './images.js';
 
 export const EB_THEMES = {
   paper: { bg: '#fbf8f1', fg: '#2b2620', sub: '#9a8f7e', line: '#e7dfcf', name: '종이' },
@@ -172,6 +173,7 @@ function loadOpt() {
 
 // 연성 출력 대화상자: E북 / 이미지 / 일반 HTML·텍스트
 export async function openStoryOutput({ title, subtitle, chapters, fallback }) {
+  chapters = await Promise.all(chapters.map(async (c) => ({ ...c, html: await inlineImages(c.html) })));
   const mode = await modal({
     title: '연성 출력하기',
     body: `<div class="out-choice">

@@ -15,11 +15,29 @@ export function icon(name, size = 20, cls = '') {
   return `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 }
 
+// ---------- 이미지 참조 (O-note 이미지 저장소) ----------
+// 문서에는 'oimg:<경로>'만 저장하고, 화면에 붙는 순간 images.js가 실제 이미지로 채움
+export const PH = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+export const isRef = (s) => typeof s === 'string' && /^oimg:[\w-]+\/[\w.-]+$/.test(s);
+export const imgAttrs = (src) => (isRef(src) ? `src="${PH}" data-src="${src}"` : `src="${esc(src)}"`);
+export const bgAttrs = (src) => (isRef(src) ? `data-bg="${src}"` : `style="background-image:url('${esc(src)}')"`);
+let hooked = false;
+function hookPurify() {
+  if (hooked || !window.DOMPurify) return;
+  hooked = true;
+  // 화면에 붙은 이미지(blob: 주소)를 저장할 때는 다시 참조 형태로 되돌림
+  window.DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+    if (data.attrName === 'src' && node.nodeName === 'IMG' && isRef(node.getAttribute('data-src') || '')) { data.attrValue = PH; data.forceKeepAttr = true; }
+    if (data.attrName === 'data-src' && !isRef(data.attrValue)) data.keepAttr = false;
+  });
+}
+
 // 리치 텍스트 정화 (XSS 방지)
 const ALLOWED_TAGS = ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'ul', 'ol', 'li', 'hr', 'img', 'a', 'font', 'mark', 'sub', 'sup', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'ruby', 'rt', 'rp', 'figure', 'figcaption'];
-const ALLOWED_ATTR = ['style', 'href', 'src', 'alt', 'title', 'color', 'size', 'face', 'class', 'data-wiki', 'colspan', 'rowspan', 'width', 'height', 'target', 'rel'];
+const ALLOWED_ATTR = ['data-src', 'style', 'href', 'src', 'alt', 'title', 'color', 'size', 'face', 'class', 'data-wiki', 'colspan', 'rowspan', 'width', 'height', 'target', 'rel'];
 export function sanitize(html) {
   if (!window.DOMPurify) return esc(html);
+  hookPurify();
   return window.DOMPurify.sanitize(html || '', {
     ALLOWED_TAGS, ALLOWED_ATTR,
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|data:image\/(?:png|jpe?g|gif|webp);base64,|#|\/)/i,
@@ -186,8 +204,8 @@ export function emptyState(ic, title, desc, btn = '') {
 
 // 페어 폴더 아이콘: 업로드한 이미지 > 직접 입력/선택한 이모지
 export function folderIcon(d, fallback = '💞', inlineStyle = '') {
-  if (d && d.iconImg && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(d.iconImg)) {
-    return `<img class="f-ico" src="${d.iconImg}" alt="" ${inlineStyle ? `style="${inlineStyle}"` : ''}>`;
+  if (d && d.iconImg && (isRef(d.iconImg) || /^data:image\/(png|jpe?g|webp|gif);base64,/.test(d.iconImg))) {
+    return `<img class="f-ico" ${imgAttrs(d.iconImg)} alt="" ${inlineStyle ? `style="${inlineStyle}"` : ''}>`;
   }
   return esc((d && d.emoji) || fallback);
 }

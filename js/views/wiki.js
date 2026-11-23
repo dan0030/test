@@ -1,7 +1,8 @@
 // 위키형 캐릭터 프로필 & 세계관 문서
 // 문서 엔진: 위키 문서 공방(mnmwiki)의 렌더러/에디터/표 도구 (vendor/nw/*) — 나무위키 형식 출력, 티스토리 붙여넣기 호환
 import { all, get, create, update, settings, updateSettings } from '../store.js';
-import { icon, esc, TYPES, emptyState, toast, compressImage, pickFile, modal, confirmBox, promptBox, download, safeName, debounce } from '../ui.js';
+import { icon, esc, TYPES, emptyState, toast, pickFile, modal, confirmBox, promptBox, download, safeName, debounce, imgAttrs, isRef, PH } from '../ui.js';
+import { saveImage, inlineImages } from '../images.js';
 import { itemCard, folderBadge, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openColorPopover } from '../colors.js';
 import { formDialog } from '../form.js';
@@ -113,9 +114,20 @@ function syncMeta(d, m) {
   if (pfOn) (m.profile.groups || []).forEach((g) => { parts.push(R.plainText(g.title || '')); (g.rows || []).forEach((r) => parts.push(`${R.plainText(r.label || '')} ${R.plainText(r.value || '')}`)); });
   walk(m.chapters, (c) => parts.push(R.plainText(c.title || ''), R.plainText(c.body || '')));
   (m.notices || []).forEach((n) => parts.push(R.plainText(n.text || '')));
-  d.searchText = parts.join(' ').replace(/\s+/g, ' ').slice(0, 20000);
-  // [[링크]] 역링크 계산용 원문 보존
-  d.links = [...new Set((JSON.stringify(m).match(/\[\[([^\]<>|]{1,60})/g) || []).map((x) => x.slice(2).trim()))];
+  // 검색용 본문은 저장하지 않고(용량 절약) 필요할 때 계산 — 예전 형식의 필드는 정리
+  delete d.searchText; delete d.links;
+  return parts.join(' ').replace(/\s+/g, ' ');
+}
+
+// 검색·요약용 본문 텍스트 (저장하지 않고 메모리에서만 계산·보관)
+const textCache = new WeakMap();
+export function wikiText(it) {
+  if (!it?.data?.nw || !window.NWR) return '';
+  const c = textCache.get(it);
+  if (c && c.u === it.updated_at) return c.t;
+  const t = syncMeta({}, it.data.nw);
+  textCache.set(it, { u: it.updated_at, t });
+  return t;
 }
 
 export function newWiki(type, folderId, title = '') {
@@ -185,7 +197,7 @@ export function renderView(root, id) {
   const t = TYPES[it.type];
   const m = migrate(it);
   const r = N().render(m, { editable: false, docId: `v${it.id.slice(0, 8)}` });
-  const backlinks = all().filter((o) => o.id !== it.id && d.title && ((o.data.links || []).includes(d.title) || JSON.stringify(o.data).includes(`[[${d.title}`)));
+  const backlinks = all().filter((o) => o.id !== it.id && d.title && JSON.stringify(o.data).includes(`[[${d.title}`));
   const relations = (d.relations || []).map((x) => ({ ...x, it: get(x.id) })).filter((x) => x.it);
 
   root.innerHTML = `
@@ -202,7 +214,7 @@ export function renderView(root, id) {
       </div>
     </div>
     <div class="nw-paper"><div class="nw-view" style="${esc(N().docStyle(m))}"><style>${N().enhanceCss('.nw-view')}</style>${r.html}</div></div>
-    ${relations.length ? `<h2 class="rel-h">${icon('users', 18)} 관계</h2><div class="relations">${relations.map((x) => `<a class="rel" href="#/w/${x.it.id}">${x.it.data.image ? `<img src="${esc(x.it.data.image)}" alt="">` : `<span class="rel-ph">${icon('user', 20)}</span>`}<div><b>${esc(x.it.data.title)}</b><span>${esc(x.label || '')}</span></div></a>`).join('')}</div>` : ''}
+    ${relations.length ? `<h2 class="rel-h">${icon('users', 18)} 관계</h2><div class="relations">${relations.map((x) => `<a class="rel" href="#/w/${x.it.id}">${x.it.data.image ? `<img ${imgAttrs(x.it.data.image)} alt="">` : `<span class="rel-ph">${icon('user', 20)}</span>`}<div><b>${esc(x.it.data.title)}</b><span>${esc(x.label || '')}</span></div></a>`).join('')}</div>` : ''}
     ${backlinks.length ? `<div class="backlinks">${icon('link-2', 15)} <span>이 문서를 언급한 문서: ${backlinks.map((b) => `<a href="${hrefOf(b)}">${esc(b.data.title)}</a>`).join(', ')}</span></div>` : ''}
     ${commentsPanel(it)}`;
   const host = root.querySelector('.nw-view');
@@ -251,13 +263,13 @@ async function openWikiExport(it, m) {
       w.querySelectorAll('#wx-style,#wx-script').forEach((x) => x.addEventListener('change', draw));
       draw();
       w.querySelector('#wx-go').onclick = async () => {
-        if (mode === 'frag') { toast((await copyText(code())) ? 'HTML 코드를 복사했어요. 티스토리 HTML 모드에 붙여넣으세요!' : '복사에 실패했어요', 'ok'); }
-        if (mode === 'page') download(`${safeName(name)}.html`, R.exportPage(m, { docId: `x${it.id.slice(0, 6)}` }), 'text/html');
+        if (mode === 'frag') { toast((await copyText(await inlineImages(code()))) ? 'HTML 코드를 복사했어요. 티스토리 HTML 모드에 붙여넣으세요!' : '복사에 실패했어요', 'ok'); }
+        if (mode === 'page') download(`${safeName(name)}.html`, await inlineImages(R.exportPage(m, { docId: `x${it.id.slice(0, 6)}` })), 'text/html');
         if (mode === 'png') {
           const open = JSON.parse(JSON.stringify(m));
           walk(open.chapters, (c) => { c.collapsed = false; });
           const r = R.render(open, { editable: false, docId: 'img' });
-          const html = `<div style="${R.docStyle(open)};background:#fff;width:900px;">${r.html}</div>`;
+          const html = await inlineImages(`<div style="${R.docStyle(open)};background:#fff;width:900px;">${r.html}</div>`);
           toast('이미지를 만드는 중…');
           const n = await exportImages(html, name, { width: 900, split: +w.querySelector('#wx-split').value });
           if (n) toast(`${n}장의 이미지를 저장했어요`, 'ok');
@@ -276,8 +288,9 @@ export function renderEdit(root, id) {
   if (!window.NWR || !window.NWE) { root.innerHTML = emptyState('bug', '위키 엔진을 불러오지 못했어요', '새로고침해 주세요.'); return; }
   const R = N(); const E = ED();
   const t = TYPES[it.type];
-  const model = migrate(it);
-  if (!it.data.nw) update(it.id, (d) => { d.nw = model; syncMeta(d, model); return d; }, { silent: true });
+  // 편집용 사본 (저장된 데이터와 객체를 공유하지 않아야 변경 감지가 정확함)
+  const model = JSON.parse(JSON.stringify(migrate(it)));
+  if (!it.data.nw) update(it.id, (d) => { d.nw = JSON.parse(JSON.stringify(model)); syncMeta(d, model); return d; }, { silent: true });
   const docId = `e${it.id.slice(0, 6)}`;
   let tab = 'struct';
 
@@ -317,7 +330,7 @@ export function renderEdit(root, id) {
 
   // ----- 저장 -----
   let timer = null;
-  const commit = () => { clearTimeout(timer); update(it.id, (d) => { d.nw = model; syncMeta(d, model); return d; }, { silent: true }); };
+  const commit = () => { clearTimeout(timer); update(it.id, (d) => { d.nw = JSON.parse(JSON.stringify(model)); syncMeta(d, model); return d; }, { silent: true }); };
   const save = () => { clearTimeout(timer); timer = setTimeout(commit, 350); };
 
   // ----- 문서 ↔ 모델 -----
@@ -329,6 +342,7 @@ export function renderEdit(root, id) {
     const copy = el.cloneNode(true);
     copy.querySelectorAll('[data-nw=fn]').forEach((fn) => { fn.innerHTML = '[*]'; fn.removeAttribute('class'); fn.removeAttribute('style'); fn.removeAttribute('contenteditable'); });
     copy.querySelectorAll('.nw-cell-selected').forEach((c) => { c.classList.remove('nw-cell-selected'); if (!c.className) c.removeAttribute('class'); });
+    copy.querySelectorAll('img[data-src^="oimg:"]').forEach((im) => im.setAttribute('src', PH));
     return copy.innerHTML;
   };
 
@@ -483,7 +497,7 @@ export function renderEdit(root, id) {
     const v = await formDialog({
       title: cur ? '사진 편집' : '사진 넣기', okText: cur ? '적용' : '넣기', danger: cur ? '사진 삭제' : null,
       fields: [
-        { key: 'src', label: '이미지', type: 'image', value: img ? img.getAttribute('src') : '' },
+        { key: 'src', label: '이미지', type: 'image', value: img ? (img.getAttribute('data-src') || img.getAttribute('src')) : '' },
         { key: 'w', label: '가로 크기', value: cur ? (cur.getAttribute('data-w') || '') : '', placeholder: '예: 420 또는 60% (비우면 원본)' },
         { key: 'align', label: '정렬', type: 'select', value: cur ? (cur.getAttribute('data-align') || 'center') : 'center', options: [['center', '가운데'], ['left', '왼쪽'], ['right', '오른쪽']] },
         { key: 'cap', label: '사진 설명', value: cap ? cap.textContent : '', placeholder: '비워도 돼요' },
@@ -492,9 +506,9 @@ export function renderEdit(root, id) {
     E.restore(snap);
     if (!v) return;
     if (v.__delete && cur) { cur.remove(); syncBlocks(); return; }
-    const src = R.safeUrl(v.src); if (!src) return toast('이미지를 확인해주세요', 'error');
+    const src = isRef(v.src) ? v.src : R.safeUrl(v.src); if (!src) return toast('이미지를 확인해주세요', 'error');
     const w = String(v.w || '').trim(); if (w && !/^[0-9.]+%?$/.test(w)) return toast('가로 크기는 숫자(px) 또는 %로 입력하세요', 'error');
-    const html = `<div data-nw="figure" data-w="${esc(w)}" data-align="${esc(v.align || 'center')}"><img src="${esc(src)}" alt="${esc(v.cap || '이미지')}">${v.cap ? `<span data-nw="fcap">${esc(v.cap)}</span>` : ''}</div>`;
+    const html = `<div data-nw="figure" data-w="${esc(w)}" data-align="${esc(v.align || 'center')}"><img ${imgAttrs(src)} alt="${esc(v.cap || '이미지')}">${v.cap ? `<span data-nw="fcap">${esc(v.cap)}</span>` : ''}</div>`;
     if (cur) E.replaceBlock(cur, html); else if (!E.insertBlock(html)) return toast('본문에 커서를 두고 다시 시도하세요');
     syncBlocks();
   }
@@ -639,7 +653,7 @@ export function renderEdit(root, id) {
         ${on ? `
         <div class="panel">
           <h4>${icon('image', 15)} 프로필 이미지</h4>
-          <div class="img-drop sm" id="pf-img">${pf.image ? `<img src="${esc(pf.image)}" alt="">` : `${icon('image-plus', 24)}<span>눌러서 올리기</span>`}</div>
+          <div class="img-drop sm" id="pf-img">${pf.image ? `<img ${imgAttrs(pf.image)} alt="">` : `${icon('image-plus', 24)}<span>눌러서 올리기</span>`}</div>
           <div class="btn-row"><button class="btn ghost sm" id="pf-url">${icon('link', 14)} 주소로 넣기</button>${pf.image ? `<button class="btn ghost sm danger" id="pf-del">${icon('trash', 14)} 삭제</button>` : ''}</div>
           ${pf.image ? `<label class="lbl">사진 설명</label><input class="input" id="pf-cap" value="${esc(plain(pf.imageCaption))}" placeholder="비워도 돼요">` : ''}
         </div>
@@ -737,7 +751,7 @@ export function renderEdit(root, id) {
     const pf = model.profile;
     if (e.target.closest('#pf-img')) {
       const f = await pickFile(); if (!f) return;
-      try { pf.image = await compressImage(f, 800); rerender(); } catch (err) { toast(err.message, 'error'); }
+      try { toast('이미지를 올리는 중…'); pf.image = await saveImage(f, 'profile'); rerender(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     if (e.target.closest('#pf-url')) { const u = await promptBox('이미지 주소', 'https://'); if (u) { const s = R.safeUrl(u); if (!s) return toast('주소를 확인해주세요', 'error'); pf.image = s; rerender(); } return; }

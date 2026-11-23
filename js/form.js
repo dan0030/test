@@ -1,5 +1,6 @@
 // 입력 폼 대화상자 (위키 편집기의 사진·인용구·각주 등)
-import { modal, esc, icon, toast, compressImage, pickFile } from './ui.js';
+import { modal, esc, icon, toast, pickFile } from './ui.js';
+import { saveImage } from './images.js';
 import { openColorPopover, normHex } from './colors.js';
 
 function field(f) {
@@ -55,9 +56,10 @@ export function formDialog({ title, fields, okText = '확인', wide = false, dan
         const f = await pickFile();
         if (!f) return;
         try {
-          const url = await compressImage(f, 1000);
+          toast('이미지를 올리는 중…');
+          const url = await saveImage(f, 'content');
           w.querySelector(`[data-k="${b.dataset.upload}"]`).value = url;
-          toast('이미지를 불러왔어요 (자동으로 줄이고 위치정보를 지웠어요)', 'ok');
+          toast('이미지를 올렸어요 (자동으로 줄이고 위치정보를 지웠어요)', 'ok');
         } catch (e) { toast(e.message, 'error'); }
       }));
     },

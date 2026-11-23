@@ -1,6 +1,6 @@
 // 페어 폴더 + 페어틀
 import { all, get, update, inFolder } from '../store.js';
-import { folderIcon, icon, esc, TYPES, emptyState, modal, toast, confirmBox, $ } from '../ui.js';
+import { imgAttrs, folderIcon, icon, esc, TYPES, emptyState, modal, toast, confirmBox, $ } from '../ui.js';
 import { itemCard, newFolderDialog, pageHead, membersOf, membersHTML, rowVals } from '../common.js';
 import { remove } from '../store.js';
 import { openExport } from '../export.js';
@@ -89,7 +89,7 @@ function renderPairtle(body, f, rerender) {
   const docs = cols.map((c) => (mem.length ? charDoc(c) : null));
   const tmpl = classic ? 'minmax(0,1fr) minmax(90px,150px) minmax(0,1fr)' : `minmax(96px,150px) repeat(${n}, minmax(${n >= 4 ? 110 : 130}px, 1fr))`;
   const minW = classic ? 0 : 150 + n * (n >= 4 ? 110 : 130);
-  const face = (doc, name) => `<div class="pt-face">${doc?.data.image ? `<img src="${esc(doc.data.image)}" alt="">` : `<span class="pt-ph">${icon('user', 26)}</span>`}<b>${esc(name)}</b>${doc ? `<a class="link small" href="#/w/${doc.id}">${icon('contact', 12)} 프로필</a>` : ''}</div>`;
+  const face = (doc, name) => `<div class="pt-face">${doc?.data.image ? `<img ${imgAttrs(doc.data.image)} alt="">` : `<span class="pt-ph">${icon('user', 26)}</span>`}<b>${esc(name)}</b>${doc ? `<a class="link small" href="#/w/${doc.id}">${icon('contact', 12)} 프로필</a>` : ''}</div>`;
   const cell = (ri, j, val) => `<div class="pt-cell" contenteditable="true" data-j="${j}" data-ph="…">${esc(val)}</div>`;
   const label = (r) => `<div class="pt-label" contenteditable="true" data-k="label" data-ph="질문">${esc(r.label)}</div>`;
   const head = classic
@@ -134,7 +134,7 @@ function renderPairtle(body, f, rerender) {
   };
   body.querySelector('#pt-exp').onclick = () => {
     const c = d.color || '#ccc';
-    const img = (doc) => (doc?.data.image ? `<img src="${doc.data.image}" alt="" style="width:${n >= 4 ? 72 : 96}px;height:${n >= 4 ? 72 : 96}px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : '');
+    const img = (doc) => (doc?.data.image ? `<img ${imgAttrs(doc.data.image)} alt="" style="width:${n >= 4 ? 72 : 96}px;height:${n >= 4 ? 72 : 96}px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : '');
     const td = (v, extra = '') => `<td style="padding:.7em;text-align:center;border-top:1px solid ${c};word-break:keep-all;${extra}">${esc(v)}</td>`;
     const lab = (v) => td(v, `font-weight:700;font-size:.85em;background:${c}33;`);
     const faceTd = (j) => `<td style="text-align:center;padding:1em .5em;vertical-align:bottom;">${img(docs[j])}<b style="font-size:1.05em">${esc(cols[j])}</b></td>`;

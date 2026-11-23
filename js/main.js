@@ -1,6 +1,7 @@
 // O-note 진입점: 인증 → 데이터 로드 → 레이아웃 → 라우터
 import { CONFIG } from './config.js';
-import { store, initLocal, initCloud, onChange, unlock, flush, pull, get } from './store.js';
+import { store, initLocal, initCloud, onChange, unlock, flush, pull, get, clearDeviceCache } from './store.js';
+import { startImageHydrator, migrateInlineImages, cleanupImages } from './images.js';
 import { icon, esc, toast, $, modal } from './ui.js';
 import { pomo, onPomo, fmt, start, pause } from './pomodoro.js';
 import * as Home from './views/home.js';
@@ -247,6 +248,7 @@ function unlockScreen() {
 async function signOut() {
   if (store.mode === 'local') { sessionStorage.removeItem('onote-trial'); location.reload(); return; }
   await flush();
+  await clearDeviceCache();
   await sb.auth.signOut();
 }
 
@@ -311,7 +313,7 @@ function mount() {
   });
   const drawSync = () => {
     const s = store.status;
-    const map = { saved: ['cloud-check', store.mode === 'cloud' ? '동기화됨' : '저장됨'], saving: ['loader', '저장 중…'], error: ['cloud-exclamation-point', '저장 실패 · 재시도 중'], offline: ['cloud-off', '오프라인'] };
+    const map = { saved: ['cloud-check', store.mode === 'cloud' ? '동기화됨' : '저장됨'], saving: ['loader', '저장 중…'], error: ['cloud-exclamation-point', '저장 실패 · 재시도 중'], offline: ['cloud-off', '오프라인'], quota: ['cloud-exclamation-point', '저장 공간 가득 참'] };
     const [ic, t] = map[s] || map.saved;
     $('#sync').innerHTML = `${icon(store.mode === 'local' && s === 'saved' ? 'hard-drive' : ic, 16, s === 'saving' ? 'spin' : '')}<span class="hide-m">${t}</span>`;
     $('#sync').className = `sync s-${s}`;
@@ -319,6 +321,9 @@ function mount() {
   drawSync();
   onChange((kind) => {
     if (kind === 'status') drawSync();
+    if (kind === 'quota') {
+      modal({ title: '저장 공간이 가득 찼어요', body: `<p>계정의 기록 저장 공간(2MB)을 다 썼어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.</p><p class="muted small">설정 → 저장 공간에서 사용량을 확인하고, 필요 없는 기록을 지우거나 백업 후 정리해 주세요. 정리하면 자동으로 다시 저장돼요.</p>`, actions: [{ label: '설정으로', cls: 'primary', value: () => { location.hash = '#/settings'; return true; } }] });
+    }
     if (kind === 'remote') {
       // 글을 쓰는 중인 화면은 커서가 튀지 않도록 다시 그리지 않음
       const editing = /^#\/(s|read)\//.test(location.hash) || /\/edit/.test(location.hash) || document.querySelector('.modal-back');
@@ -329,9 +334,15 @@ function mount() {
   window.addEventListener('hashchange', route);
   window.addEventListener('beforeunload', (e) => { if (store.dirty.size || store.deleted.size) { flush(); e.preventDefault(); e.returnValue = ''; } });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); else pull(); });
-  window.addEventListener('online', () => { flush(); pull(); });
-  setInterval(pull, 60000);
+  window.addEventListener('online', () => { flush(); pull({ force: true }); });
+  // 무료 전송량을 아끼기 위해 화면이 보일 때만 5분마다 확인 (바뀐 행만 받음)
+  setInterval(() => { if (document.visibilityState === 'visible') pull(); }, 300000);
   route();
+  startImageHydrator();
+  if (store.mode === 'cloud') {
+    // 무료 공간 아끼기: 문서 속 큰 사진은 저장소로 옮기고, 안 쓰는 사진은 하루 한 번 정리
+    setTimeout(() => { migrateInlineImages().then(() => cleanupImages()).catch(() => {}); }, 4000);
+  }
 }
 
 async function newMenu() {

@@ -803,3 +803,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .story-card { flex-direction: column; }
   .sc-cover { width: auto; height: 88px; }
 }
+/* 저장 공간 */
+.usage { display: grid; gap: 10px; }
+.u-row .u-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.u-row .u-top span { display: inline-flex; gap: 5px; align-items: center; color: var(--sub); }
+.u-row .progress { margin: 6px 0 2px; }
+.img-missing { outline: 1px dashed var(--line); background: var(--surface-2); min-width: 40px; min-height: 40px; }

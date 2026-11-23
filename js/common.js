@@ -1,6 +1,8 @@
 // 여러 화면에서 쓰는 공통 조각들
 import { all, get, update, create, remove } from './store.js';
-import { folderIcon, compressSquare, pickFile, icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
+import { saveImage } from './images.js';
+import { bgAttrs, folderIcon, pickFile, icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
+import { wikiText } from './views/wiki.js';
 import { colorPick, bindColorPick, pickedColor } from './colors.js';
 
 // 폴더 멤버: 1명(단독)·2명(페어)·3명 이상(다인) 모두 지원. 예전 {pair:{a,b}} 형식도 읽음
@@ -20,7 +22,7 @@ export function summary(it) {
   if (it.type === 'story') return d.summary || htmlToText((d.chapters || [])[0]?.html || '').slice(0, 120);
   if (it.type === 'plot') return d.desc || `사건 ${(d.events || []).length}개`;
   if (it.type === 'folder') return d.desc || '';
-  return d.subtitle || (d.searchText || htmlToText(d.body || '')).slice(0, 120);
+  return d.subtitle || (wikiText(it) || htmlToText(d.body || '')).slice(0, 120);
 }
 
 export function itemHref(it) {
@@ -38,7 +40,7 @@ export function itemCard(it, { showType = true } = {}) {
   const d = it.data;
   const img = d.image || d.cover;
   return `<a class="card item-card" href="${itemHref(it)}">
-    ${img ? `<div class="thumb" style="background-image:url('${esc(img)}')"></div>` : `<div class="thumb ph">${icon(t.icon, 28)}</div>`}
+    ${img ? `<div class="thumb" ${bgAttrs(img)}></div>` : `<div class="thumb ph">${icon(t.icon, 28)}</div>`}
     <div class="ic-body">
       <div class="ic-top">${showType ? `<span class="type-tag">${icon(t.icon, 13)} ${t.label}</span>` : ''}${d.bookmarked ? `<span class="star">${icon('bookmark', 14)}</span>` : ''}</div>
       <h4>${esc(d.title || '제목 없음')}</h4>
@@ -151,7 +153,7 @@ export async function newFolderDialog(existing) {
       w.querySelector('#ico-text').addEventListener('input', () => { w._iconImg = ''; prev(); });
       w.querySelector('#ico-up').onclick = async () => {
         const f = await pickFile(); if (!f) return;
-        try { w._iconImg = await compressSquare(f, 128); prev(); } catch (err) { toast(err.message, 'error'); }
+        try { w._iconImg = await saveImage(f, 'icon'); prev(); } catch (err) { toast(err.message, 'error'); }
       };
       w.querySelector('#ico-clear').onclick = () => { w._iconImg = ''; prev(); };
     },
