@@ -1,4 +1,5 @@
 // O-note 자체 리치 텍스트 에디터 (한글/포스타입 스타일, 모바일 대응)
+import { openColorPopover } from './colors.js';
 import { icon, esc, sanitize, htmlToText, countText, modal, toast, compressImage, pickFile, debounce, $ } from './ui.js';
 
 const TEXT_COLORS = ['#222222', '#666666', '#b0b0b0', '#e5484d', '#f76b15', '#d6a100', '#30a46c', '#0090ff', '#3e63dd', '#8e4ec6', '#d6409f', '#ffffff'];
@@ -139,8 +140,8 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
     if (!b) return;
     const cmd = b.dataset.cmd;
     switch (cmd) {
-      case 'color': return palette(b, TEXT_COLORS, (c) => exec('foreColor', c));
-      case 'hilite': return palette(b, HL_COLORS, (c) => { exec('styleWithCSS', true); exec('hiliteColor', c); exec('styleWithCSS', false); });
+      case 'color': saveSel(); return openColorPopover(b, null, (c) => exec('foreColor', c), { presets: [...TEXT_COLORS, ...HL_COLORS.slice(1)] });
+      case 'hilite': saveSel(); return openColorPopover(b, null, (c) => { exec('styleWithCSS', true); exec('hiliteColor', c); exec('styleWithCSS', false); }, { presets: [...HL_COLORS.slice(1), ...TEXT_COLORS], transparent: true });
       case 'hr': return exec('insertHTML', '<hr><p><br></p>');
       case 'image': {
         saveSel();

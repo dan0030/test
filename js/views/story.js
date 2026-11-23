@@ -4,6 +4,7 @@ import { icon, esc, sanitize, htmlToText, countText, emptyState, toast, compress
 import { createEditor } from '../editor.js';
 import { itemCard, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openExport } from '../export.js';
+import { openStoryOutput } from '../ebook.js';
 
 const STATUS = ['구상 중', '작성 중', '퇴고 중', '완성', '게시 완료'];
 const cid = () => crypto.randomUUID().slice(0, 8);
@@ -33,7 +34,7 @@ function storyCard(it) {
       <span class="chip">${esc(d.status || STATUS[0])}</span>${d.bookmarked ? `<span class="star">${icon('bookmark', 14)}</span>` : ''}
       <h4><a href="#/s/${it.id}">${esc(d.title || '제목 없음')}</a></h4>
       <p>${esc(d.summary || '')}</p>
-      <div class="sc-meta muted small">${icon('layers', 13)} ${(d.chapters || []).length}회차 · ${icon('type', 13)} ${chars.toLocaleString()}자</div>
+      <div class="sc-meta muted small"><span>${icon('layers', 13)} ${(d.chapters || []).length}회차</span><span>${icon('type', 13)} ${chars.toLocaleString()}자</span></div>
       <div class="sc-act"><a class="btn ghost sm" href="#/s/${it.id}">${icon('pencil', 15)} 쓰기</a><a class="btn ghost sm" href="#/read/${it.id}">${icon('book-open-text', 15)} E북 보기</a></div>
     </div></div>`;
 }
@@ -54,7 +55,7 @@ export function renderEdit(root, id, q) {
       <button class="btn ghost sm show-m" id="ch-toggle">${icon('panel-left', 16)}<span>회차</span></button>
       <span class="grow"></span>
       <a class="btn ghost sm" href="#/read/${it.id}?ch=${chId}">${icon('book-open-text', 16)}<span>E북 보기</span></a>
-      <button class="btn ghost sm" id="exp">${icon('share', 16)}<span>내보내기</span></button>
+      <button class="btn ghost sm" id="exp">${icon('share', 16)}<span>출력하기</span></button>
       ${bookmarkBtn(it)}
       <button class="btn ghost sm danger" id="del" title="삭제">${icon('trash', 16)}</button>
     </div>
@@ -78,7 +79,8 @@ export function renderEdit(root, id, q) {
         </div>
         <div class="panel">
           <h4>${icon('target', 16)} 목표 글자 수</h4>
-          <div class="goal"><input class="input" type="number" min="0" step="500" id="s-goal" value="${d.goal || ''}" placeholder="예: 10000"><span class="muted small">자 (공백 제외, 전체)</span></div>
+          <div class="goal"><input class="input" type="number" min="0" step="500" id="s-goal" value="${d.goal || ''}" placeholder="예: 10000"><span class="goal-unit">자</span></div>
+          <p class="muted small">공백 제외 · 전체 회차 기준</p>
           <div class="progress"><div id="goal-bar"></div></div>
           <p class="muted small" id="goal-txt"></p>
         </div>
@@ -157,8 +159,13 @@ export function renderEdit(root, id, q) {
       actions: [{ label: '현재 회차', cls: 'ghost', value: () => 'one' }, { label: '전체 회차', cls: 'primary', value: () => 'all' }],
     }) : 'one';
     if (!which) return;
-    if (which === 'one') openExport({ title: d.title || '제목 없음', subtitle: ch.title, html: ch.html });
-    else openExport({ title: d.title || '제목 없음', subtitle: d.summary, html: d.chapters.map((c) => `<h3 style="text-align:center">${esc(c.title)}</h3>${c.html}`).join('<hr>') });
+    const dd = get(id).data;
+    const cur = dd.chapters.find((x) => x.id === chId) || dd.chapters[0];
+    const chs = which === 'one' ? [{ title: cur.title, html: cur.html }] : dd.chapters.map((c) => ({ title: c.title, html: c.html }));
+    const fallback = () => (which === 'one'
+      ? openExport({ title: dd.title || '제목 없음', subtitle: cur.title, html: cur.html })
+      : openExport({ title: dd.title || '제목 없음', subtitle: dd.summary, html: dd.chapters.map((c) => `<h3 style="text-align:center">${esc(c.title)}</h3>${c.html}`).join('<hr>') }));
+    openStoryOutput({ title: dd.title || '제목 없음', subtitle: which === 'one' ? cur.title : dd.summary, chapters: chs, fallback });
   };
   if (!d.title) root.querySelector('#s-title').focus();
   return { cleanup: () => { ed.flush(); ed.destroy(); } };

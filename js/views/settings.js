@@ -21,7 +21,7 @@ export function renderSettings(root, { signOut, setTheme }) {
             <button class="btn ghost" id="out">${icon('log-out', 16)} 로그아웃</button>
           </div>`
         : `<p><span class="chip warn">${icon('hard-drive', 12)} 체험 모드</span></p>
-          <p class="muted small">지금은 이 브라우저에만 저장돼요. ${CONFIG.SUPABASE_URL ? '로그인하면 계정에 저장되어 어디서든 이어서 쓸 수 있어요.' : '운영자가 Supabase를 연결하면 회원가입·로그인과 계정 동기화가 켜져요. (README 참고)'}</p>
+          <p class="muted small">지금은 이 브라우저에만 저장돼요. ${CONFIG.SUPABASE_URL ? '로그인하면 계정에 저장되어 어디서든 이어서 쓸 수 있어요.' : '지금은 계정 동기화를 사용할 수 없어요.'}</p>
           ${CONFIG.SUPABASE_URL ? `<button class="btn primary" id="out">${icon('log-in', 16)} 로그인하러 가기</button>` : ''}`}
       </section>
 
@@ -50,15 +50,15 @@ export function renderSettings(root, { signOut, setTheme }) {
       </section>
 
       <section class="card set wide">
-        <h3>${icon('file-lock', 18)} 개인정보 처리 안내</h3>
+        <h3>${icon('file-lock', 18)} <span>개인정보 처리 안내</span> <a class="more" href="#/privacy">처리방침 전문 보기</a></h3>
         <ul class="privacy">
-          <li>${icon('check', 14)} <b>수집 항목:</b> 로그인용 이메일 주소(또는 GitHub 계정 식별자)와 사용자가 직접 작성한 기록만 저장해요. 이름·전화번호 등은 받지 않아요.</li>
-          <li>${icon('check', 14)} <b>비밀번호:</b> O-note는 비밀번호를 보관하지 않아요. 인증 서비스(Supabase Auth)가 bcrypt 해시로만 저장해요.</li>
-          <li>${icon('check', 14)} <b>접근 통제:</b> 데이터베이스의 행 수준 보안(RLS)으로 본인 계정 외에는 누구도 기록을 읽거나 바꿀 수 없어요. 글 공개·게시 기능이 없어 외부에 노출되지 않아요.</li>
-          <li>${icon('check', 14)} <b>전송 구간:</b> 모든 통신은 HTTPS로 암호화돼요. 보안 금고를 켜면 저장 내용까지 종단간 암호화돼요.</li>
-          <li>${icon('check', 14)} <b>추적 없음:</b> 광고·분석 스크립트, 외부 폰트·CDN을 쓰지 않아요. 필요한 라이브러리는 사이트에 직접 포함했어요.</li>
-          <li>${icon('check', 14)} <b>이미지:</b> 올린 이미지는 크기를 줄이면서 촬영 위치 등 메타데이터(EXIF)를 제거해요.</li>
-          <li>${icon('check', 14)} <b>탈퇴:</b> 아래 버튼으로 탈퇴하면 계정과 모든 기록이 즉시 영구 삭제돼요.</li>
+          <li>${icon('check', 14)}<span><b>수집 항목:</b> 로그인용 이메일 주소(또는 GitHub 계정 식별자)와 사용자가 직접 작성한 기록만 저장해요. 이름·전화번호 등은 받지 않아요.</span></li>
+          <li>${icon('check', 14)}<span><b>비밀번호:</b> O-note는 비밀번호를 보관하지 않아요. 인증 서비스(Supabase Auth)가 bcrypt 해시로만 저장해요.</span></li>
+          <li>${icon('check', 14)}<span><b>접근 통제:</b> 데이터베이스의 행 수준 보안(RLS)으로 본인 계정 외에는 누구도 기록을 읽거나 바꿀 수 없어요. 글 공개·게시 기능이 없어 외부에 노출되지 않아요.</span></li>
+          <li>${icon('check', 14)}<span><b>전송 구간:</b> 모든 통신은 HTTPS로 암호화돼요. 보안 금고를 켜면 저장 내용까지 종단간 암호화돼요.</span></li>
+          <li>${icon('check', 14)}<span><b>추적 없음:</b> 광고·분석 스크립트, 외부 폰트·CDN을 쓰지 않아요. 필요한 라이브러리는 사이트에 직접 포함했어요.</span></li>
+          <li>${icon('check', 14)}<span><b>이미지:</b> 올린 이미지는 크기를 줄이면서 촬영 위치 등 메타데이터(EXIF)를 제거해요.</span></li>
+          <li>${icon('check', 14)}<span><b>탈퇴:</b> 아래 버튼으로 탈퇴하면 계정과 모든 기록이 즉시 영구 삭제돼요.</span></li>
         </ul>
       </section>
 

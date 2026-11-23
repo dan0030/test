@@ -1,6 +1,7 @@
 // 여러 화면에서 쓰는 공통 조각들
 import { all, get, update, create, remove } from './store.js';
 import { icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
+import { colorPick, bindColorPick, pickedColor } from './colors.js';
 
 export function folderBadge(id) {
   const f = get(id);
@@ -14,7 +15,7 @@ export function summary(it) {
   if (it.type === 'story') return d.summary || htmlToText((d.chapters || [])[0]?.html || '').slice(0, 120);
   if (it.type === 'plot') return d.desc || `사건 ${(d.events || []).length}개`;
   if (it.type === 'folder') return d.desc || '';
-  return d.subtitle || htmlToText(d.body || '').slice(0, 120);
+  return d.subtitle || (d.searchText || htmlToText(d.body || '')).slice(0, 120);
 }
 
 export function itemHref(it) {
@@ -89,7 +90,7 @@ export async function newFolderDialog(existing) {
       <label class="lbl">아이콘</label>
       <div class="emo-pick">${emojis.map((e) => `<button type="button" class="${(d.emoji || '💞') === e ? 'on' : ''}" data-e="${e}">${e}</button>`).join('')}</div>
       <label class="lbl">색상</label>
-      <div class="col-pick">${COLORS.map((c) => `<button type="button" class="${(d.color || COLORS[0]) === c ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>`,
+      ${colorPick('fc', d.color || COLORS[0], COLORS)}`,
     actions: [{ label: '취소', cls: 'ghost', value: () => null }, {
       label: existing ? '저장' : '만들기', cls: 'primary', icon: 'check', value: (w) => {
         const title = w.querySelector('#fn').value.trim();
@@ -97,13 +98,14 @@ export async function newFolderDialog(existing) {
         return {
           title, desc: w.querySelector('#fd').value.trim(),
           emoji: w.querySelector('.emo-pick .on')?.dataset.e || '💞',
-          color: w.querySelector('.col-pick .on')?.dataset.c || COLORS[0],
+          color: pickedColor(w, 'fc') || COLORS[0],
           pair: { ...(d.pair || {}), a: w.querySelector('#fa').value.trim(), b: w.querySelector('#fb').value.trim() },
         };
       },
     }],
     onOpen: (w) => {
-      ['.emo-pick', '.col-pick'].forEach((s) => w.querySelector(s).addEventListener('click', (e) => {
+      bindColorPick(w, 'fc');
+      ['.emo-pick'].forEach((s) => w.querySelector(s).addEventListener('click', (e) => {
         const b = e.target.closest('button'); if (!b) return;
         w.querySelectorAll(`${s} button`).forEach((x) => x.classList.toggle('on', x === b));
       }));

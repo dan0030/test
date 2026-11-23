@@ -33,9 +33,9 @@ export function renderHome(root) {
     ${store.mode === 'local' ? `<div class="notice">${icon('triangle-exclamation-point', 18)}<div><b>체험 모드</b>로 사용 중이에요. 기록이 이 브라우저에만 저장돼요. 다른 기기와 동기화하려면 <a href="#/settings">설정</a>에서 안내를 확인하세요.</div></div>` : ''}
     <h2 class="sec-h">${icon('zap', 18)} 바로 시작하기</h2>
     <div class="quick-grid">${quick.map(([h, ic, t, d]) => `<a class="quick" href="${h}"><span class="q-ic">${icon(ic, 22)}</span><b>${t}</b><span>${d}</span></a>`).join('')}</div>
-    ${folders.length ? `<h2 class="sec-h">${icon('folder-heart', 18)} 페어 폴더 <a class="more" href="#/folders">전체 보기</a></h2>
+    ${folders.length ? `<h2 class="sec-h">${icon('folder-heart', 18)} <span>페어 폴더</span> <a class="more" href="#/folders">전체 보기</a></h2>
       <div class="chip-row">${folders.map((f) => `<a class="fchip big" style="--c:${f.data.color}" href="#/folder/${f.id}">${esc(f.data.emoji || '💞')} ${esc(f.data.title)}</a>`).join('')}</div>` : ''}
-    ${pinned.length ? `<h2 class="sec-h">${icon('pin', 18)} 고정한 메모 <a class="more" href="#/memo">메모 전체</a></h2>
+    ${pinned.length ? `<h2 class="sec-h">${icon('pin', 18)} <span>고정한 메모</span> <a class="more" href="#/memo">메모 전체</a></h2>
       <div class="memo-grid">${pinned.map((m) => `<a class="memo" href="#/memo?open=${m.id}" style="background:${m.data.color}"><div class="memo-text">${esc(m.data.text || '').replace(/\n/g, '<br>')}</div></a>`).join('')}</div>` : ''}
     <h2 class="sec-h">${icon('rotate-ccw-clock', 18)} 최근 기록</h2>
     ${recent.length ? `<div class="grid">${recent.map((i) => itemCard(i)).join('')}</div>` : emptyState('sparkles', '아직 기록이 없어요', '위의 바로 시작하기에서 첫 기록을 만들어보세요!')}`;
@@ -53,7 +53,7 @@ export function renderSearch(root, q) {
   const lower = s.toLowerCase();
   const hit = (it) => {
     const d = it.data;
-    const hay = [d.title, d.subtitle, d.summary, d.desc, d.text, (d.tags || []).join(' '), htmlToText(d.body || ''),
+    const hay = [d.title, d.subtitle, d.summary, d.desc, d.text, d.category, d.searchText, (d.tags || []).join(' '), htmlToText(d.body || ''),
       ...(d.chapters || []).map((c) => `${c.title} ${htmlToText(c.html)}`), ...(d.events || []).map((e) => `${e.title} ${e.desc} ${(e.chars || []).join(' ')} ${e.place}`),
       ...(d.infobox || []).map((r) => `${r.k} ${r.v}`), ...(d.pairtle || []).map((r) => `${r.label} ${r.a} ${r.b}`)].join(' ').toLowerCase();
     const i = hay.indexOf(lower);

@@ -3,6 +3,7 @@ import { all, get, create, update } from '../store.js';
 import { icon, esc, emptyState, modal, toast, confirmBox, COLORS } from '../ui.js';
 import { itemCard, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openExport } from '../export.js';
+import { colorPick, bindColorPick, pickedColor } from '../colors.js';
 
 const ACTS = ['발단', '전개', '위기', '절정', '결말'];
 const eid = () => crypto.randomUUID().slice(0, 8);
@@ -159,14 +160,14 @@ async function editEvent(it, eId, done) {
       <label class="lbl">등장인물 <span class="muted small">(눌러서 선택, 직접 입력 후 Enter)</span></label>
       <div class="char-pick" id="e-c">${[...new Set([...known, ...(e.chars || [])])].map((c) => `<button type="button" class="fchip ${(e.chars || []).includes(c) ? 'on' : ''}" data-n="${esc(c)}">${esc(c)}</button>`).join('')}<input class="tag-in" id="e-cn" placeholder="+ 인물 추가"></div>
       <label class="lbl">색상</label>
-      <div class="col-pick" id="e-col">${COLORS.map((c) => `<button type="button" class="${e.color === c ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>`,
+      ${colorPick('ec', e.color, COLORS)}`,
     actions: [
       ...(eId ? [{ label: '삭제', cls: 'ghost danger', icon: 'trash', value: async () => ((await confirmBox('이 사건을 삭제할까요?', '삭제', true)) ? 'DEL' : false) }] : []),
       { label: '취소', cls: 'ghost', value: () => null },
       { label: '저장', cls: 'primary', icon: 'check', value: (w) => ({
         title: w.querySelector('#e-t').value.trim(), desc: w.querySelector('#e-d').value, when: w.querySelector('#e-w').value.trim(), at: w.querySelector('#e-a').value.trim(),
         place: w.querySelector('#e-p').value.trim(), act: w.querySelector('#e-act').value,
-        chars: [...w.querySelectorAll('#e-c .fchip.on')].map((b) => b.dataset.n), color: w.querySelector('#e-col .on')?.dataset.c || COLORS[5],
+        chars: [...w.querySelectorAll('#e-c .fchip.on')].map((b) => b.dataset.n), color: pickedColor(w, 'ec') || COLORS[5],
       }) },
     ],
     onOpen: (w) => {
@@ -178,7 +179,7 @@ async function editEvent(it, eId, done) {
           ev.target.insertAdjacentHTML('beforebegin', `<button type="button" class="fchip on" data-n="${esc(v)}">${esc(v)}</button>`); ev.target.value = '';
         }
       });
-      w.querySelector('#e-col').addEventListener('click', (ev) => { const b = ev.target.closest('[data-c]'); if (b) w.querySelectorAll('#e-col button').forEach((x) => x.classList.toggle('on', x === b)); });
+      bindColorPick(w, 'ec');
     },
   });
   if (!res) return;

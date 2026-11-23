@@ -1,6 +1,7 @@
 // 짧은 메모 (포스트잇)
 import { all, get, create, update, remove } from '../store.js';
 import { icon, esc, emptyState, modal, toast, COLORS, timeAgo, confirmBox } from '../ui.js';
+import { colorPick, bindColorPick } from '../colors.js';
 import { pageHead, folderFilter, folderPicker, bindFolderPicker } from '../common.js';
 
 const MEMO_COLORS = ['#fff7c2', '#ffe0e6', '#dff5d8', '#dbeeff', '#ece2ff', '#ffe6cc', '#f1f1f1'];
@@ -17,7 +18,7 @@ export async function openMemo(id) {
   await modal({
     title: '메모',
     body: `<textarea class="input memo-ta" id="m-t" rows="8" placeholder="떠오른 생각을 적어요…" style="background:${it.data.color}">${esc(it.data.text || '')}</textarea>
-      <div class="col-pick" id="m-c">${MEMO_COLORS.map((c) => `<button type="button" class="${it.data.color === c ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
+      ${colorPick('mc', it.data.color, MEMO_COLORS)}
       ${folderPicker(it)}
       <p class="muted small">${icon('save', 13)} 입력하는 대로 자동 저장돼요.</p>`,
     actions: [
@@ -27,11 +28,7 @@ export async function openMemo(id) {
     onOpen: (w) => {
       const ta = w.querySelector('#m-t');
       ta.addEventListener('input', () => update(id, { text: ta.value }, { silent: true }));
-      w.querySelector('#m-c').addEventListener('click', (e) => {
-        const b = e.target.closest('[data-c]'); if (!b) return;
-        w.querySelectorAll('#m-c button').forEach((x) => x.classList.toggle('on', x === b));
-        ta.style.background = b.dataset.c; update(id, { color: b.dataset.c }, { silent: true });
-      });
+      bindColorPick(w, 'mc', (c) => { ta.style.background = c || '#fff7c2'; update(id, { color: c }, { silent: true }); });
       bindFolderPicker(w, it);
     },
   });

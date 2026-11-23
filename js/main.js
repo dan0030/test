@@ -11,6 +11,7 @@ import * as Plot from './views/plot.js';
 import * as Memo from './views/memo.js';
 import * as Tools from './views/tools.js';
 import * as Settings from './views/settings.js';
+import * as Privacy from './views/privacy.js';
 
 const app = document.getElementById('app');
 let sb = null;
@@ -72,13 +73,14 @@ function authScreen(mode = 'login') {
           <label class="lbl" for="pw">비밀번호</label>
           <input class="input" id="pw" type="password" required minlength="8" autocomplete="${isUp ? 'new-password' : 'current-password'}" placeholder="8자 이상">
           ${isUp ? `<input class="input" id="pw2" type="password" required minlength="8" autocomplete="new-password" placeholder="비밀번호 확인">
-            <label class="agree"><input type="checkbox" id="agree" required> <span><a href="#" id="pv">개인정보 처리 안내</a>를 확인했고 동의해요. (이메일만 수집, 탈퇴 시 즉시 삭제)</span></label>` : ''}
+            <label class="agree"><input type="checkbox" id="agree" required> <span>만 14세 이상이며, <a href="#" id="pv">개인정보 처리방침</a>(이메일만 수집 · 탈퇴 시 즉시 삭제)에 동의해요.</span></label>` : ''}
           <button class="btn primary full" id="go">${icon(isUp ? 'user-plus' : 'log-in', 18)} ${isUp ? '가입하기' : '로그인'}</button>
         </form>
         ${!isUp ? '<button class="link small" id="forgot">비밀번호를 잊으셨나요?</button>' : ''}
         <div class="or"><span>먼저 둘러보기</span></div>
         <button class="btn ghost full" id="trial">${icon('flask-conical', 18)} 체험 모드 (이 브라우저에만 저장)</button>
-        <p class="muted small center">${icon('shield-check', 13)} 비밀번호는 암호화(해시)되어 인증 서버에만 저장되고, 기록은 본인만 볼 수 있어요.</p>
+        <p class="muted small center"><span>${icon('shield-check', 13)} 비밀번호는 복원할 수 없는 해시로만 저장되고, 기록은 본인만 볼 수 있어요.</span></p>
+        <p class="center small"><a href="#" id="pv2">개인정보 처리방침</a></p>
       </div>
     </div>`;
   app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => authScreen(b.dataset.m)));
@@ -87,7 +89,7 @@ function authScreen(mode = 'login') {
     if (error) toast(error.message, 'error');
   });
   $('#trial').onclick = async () => { sessionStorage.setItem('onote-trial', '1'); await initLocal(); mount(); };
-  $('#pv')?.addEventListener('click', (e) => { e.preventDefault(); privacyModal(); });
+  ['#pv', '#pv2'].forEach((sel) => $(sel)?.addEventListener('click', (e) => { e.preventDefault(); privacyModal(); }));
   $('#forgot')?.addEventListener('click', async () => {
     const email = $('#em').value.trim() || (await modal({ title: '비밀번호 재설정', body: '<input class="input" id="fe" type="email" placeholder="가입한 이메일">', actions: [{ label: '메일 보내기', cls: 'primary', value: (w) => w.querySelector('#fe').value.trim() || false }] }));
     if (!email) return;
@@ -121,12 +123,7 @@ function authScreen(mode = 'login') {
 }
 
 function privacyModal() {
-  modal({ title: '개인정보 처리 안내', body: `<ul class="privacy">
-    <li><b>수집 항목:</b> 이메일 주소(또는 GitHub 계정 식별자), 사용자가 작성한 기록</li>
-    <li><b>목적:</b> 로그인과 기기 간 기록 동기화</li>
-    <li><b>보관:</b> 탈퇴 시 즉시 영구 삭제</li>
-    <li><b>보호:</b> HTTPS 전송, DB 행 수준 보안(본인만 접근), 비밀번호 해시 저장, 선택형 종단간 암호화</li>
-    <li><b>제3자 제공·광고·분석 추적:</b> 없음</li></ul>` });
+  modal({ title: '개인정보 처리방침', wide: true, body: Privacy.policyHTML() });
 }
 
 async function recoverPassword() {
@@ -186,6 +183,7 @@ function mount() {
         <a class="logo" href="#/">${logoSvg()}<span>O-note</span></a>
         <nav class="nav">${NAV.map(([h, ic, n, d]) => `<a href="${h}" data-nav="${h}"><span class="n-ic">${icon(ic, 20)}</span><span class="n-t"><b>${n}</b><small>${d}</small></span></a>`).join('')}</nav>
         <div class="side-foot">
+          <a href="#/privacy" data-nav="#/privacy"><span class="n-ic">${icon('file-lock', 20)}</span><span class="n-t"><b>개인정보 처리방침</b><small>무엇을 왜 저장하는지</small></span></a>
           <a href="#/settings" data-nav="#/settings"><span class="n-ic">${icon('settings', 20)}</span><span class="n-t"><b>설정</b><small>${esc(store.mode === 'cloud' ? store.user.email || '' : '체험 모드')}</small></span></a>
         </div>
       </aside>
@@ -308,6 +306,7 @@ function route() {
       case 'bookmarks': r = Home.renderBookmarks(view); break;
       case 'search': r = Home.renderSearch(view, q); break;
       case 'settings': r = Settings.renderSettings(view, { signOut, setTheme }); break;
+      case 'privacy': r = Privacy.renderPrivacy(view); break;
       default: view.innerHTML = '<div class="center-box"><h2>페이지를 찾을 수 없어요</h2><a class="btn primary" href="#/">홈으로</a></div>';
     }
   } catch (e) {

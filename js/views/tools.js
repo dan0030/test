@@ -25,6 +25,16 @@ const SYL = ['서', '준', '하', '윤', '도', '시', '우', '은', '지', '현
 const WEST1 = ['엘', '루', '아', '세', '카', '레', '이', '노', '테', '리', '에', '시', '로', '베', '디'];
 const WEST2 = ['리안', '시스', '오넬', '드릭', '라', '비아', '레인', '엔', '토르', '니아', '셀', '로즈', '안', '카엘', '도르'];
 
+// 동양풍 판타지 (무협·선협·궁중물) — [한글, 한자]
+const EF_SUR = [['백', '白'], ['묵', '墨'], ['현', '玄'], ['운', '雲'], ['설', '薛'], ['연', '燕'], ['진', '陳'], ['소', '蘇'], ['화', '花'], ['목', '沐'], ['사', '謝'], ['위', '魏'], ['육', '陸'], ['강', '姜'], ['송', '宋'], ['남궁', '南宮'], ['제갈', '諸葛'], ['모용', '慕容'], ['독고', '獨孤'], ['상관', '上官'], ['황보', '皇甫'], ['서문', '西門'], ['사마', '司馬'], ['동방', '東方']];
+const EF_GIV = [['월', '月'], ['휘', '輝'], ['린', '麟'], ['운', '雲'], ['설', '雪'], ['연', '蓮'], ['하', '霞'], ['청', '靑'], ['현', '玄'], ['무', '無'], ['진', '塵'], ['화', '華'], ['영', '影'], ['소', '素'], ['류', '流'], ['강', '江'], ['비', '飛'], ['명', '明'], ['사', '思'], ['여', '如'], ['한', '寒'], ['천', '天'], ['율', '律'], ['려', '麗'], ['홍', '紅'], ['백', '白'], ['언', '彦'], ['경', '鏡'], ['결', '潔'], ['요', '瑤'], ['형', '衡'], ['담', '曇'], ['호', '昊'], ['아', '雅'], ['선', '璇'], ['적', '寂']];
+const EF_EPI1 = [['청풍', '淸風'], ['혈월', '血月'], ['백야', '白夜'], ['비천', '飛天'], ['무영', '無影'], ['적룡', '赤龍'], ['한설', '寒雪'], ['광풍', '狂風'], ['자하', '紫霞'], ['천마', '天魔'], ['낙화', '落花'], ['묵영', '墨影'], ['청린', '靑鱗'], ['월하', '月下']];
+const EF_EPI2 = [['검', '劍'], ['검선', '劍仙'], ['공자', '公子'], ['선자', '仙子'], ['도객', '刀客'], ['신의', '神醫'], ['서생', '書生'], ['마군', '魔君'], ['진인', '眞人'], ['낭자', '娘子'], ['귀', '鬼'], ['책사', '策士']];
+// 일본식 — [한자, 한글 읽기]
+const JP_SUR = [['天野', '아마노'], ['雨宮', '아마미야'], ['一ノ瀬', '이치노세'], ['九条', '쿠조'], ['神崎', '칸자키'], ['白石', '시라이시'], ['黒崎', '쿠로사키'], ['桐生', '키류'], ['早乙女', '사오토메'], ['月島', '츠키시마'], ['柊', '히이라기'], ['朝比奈', '아사히나'], ['藤原', '후지와라'], ['鳴海', '나루미'], ['氷室', '히무로'], ['篠宮', '시노미야'], ['結城', '유우키'], ['綾瀬', '아야세'], ['水瀬', '미나세'], ['久遠', '쿠온'], ['東雲', '시노노메'], ['鷹宮', '타카미야'], ['七瀬', '나나세'], ['御影', '미카게'], ['高嶺', '타카네'], ['宵宮', '요이미야']];
+const JP_M = [['蓮', '렌'], ['湊', '미나토'], ['陽翔', '하루토'], ['悠真', '유마'], ['律', '리츠'], ['颯', '하야테'], ['奏', '카나데'], ['蒼', '아오이'], ['樹', '이츠키'], ['凛太郎', '린타로'], ['千尋', '치히로'], ['朔', '사쿠'], ['晴', '하루'], ['響', '히비키'], ['透', '토오루'], ['慧', '케이'], ['零', '레이'], ['遥', '하루카'], ['燈真', '토우마'], ['恭弥', '쿄야']];
+const JP_F = [['紬', '츠무기'], ['凛', '린'], ['結衣', '유이'], ['葵', '아오이'], ['楓', '카에데'], ['澪', '미오'], ['雫', '시즈쿠'], ['千夏', '치나츠'], ['小春', '코하루'], ['詩織', '시오리'], ['茜', '아카네'], ['琴音', '코토네'], ['灯', '아카리'], ['椿', '츠바키'], ['真昼', '마히루'], ['美月', '미즈키'], ['菫', '스미레'], ['花音', '카논'], ['彩葉', '이로하'], ['柚', '유즈']];
+
 export function renderTools(root, q) {
   const tab = q.get('tab') || 'count';
   const tabs = [['count', 'type', '글자 수 세기'], ['pomo', 'timer', '뽀모도로'], ['idea', 'lightbulb', '브레인스토밍'], ['name', 'signature', '이름 짓기']];
@@ -117,8 +127,8 @@ function ideas(body) {
     </div>
     <div class="card scene">
       <div class="gen-head">${icon('clapperboard', 22)}<div><h4>장면 설계 (6하 원칙)</h4><p class="muted small">쓰기 전에 장면의 뼈대를 잡아요. 다 채우고 메모로 저장하세요.</p></div></div>
-      <div class="row2">${[['누가', '등장인물'], ['언제', '시간·계절'], ['어디서', '장소'], ['무엇을', '사건'], ['어떻게', '방식·분위기'], ['왜', '동기·감정']].map(([k, p]) => `<label class="lbl">${k}<input class="input" data-w="${k}" placeholder="${p}"></label>`).join('')}</div>
-      <label class="lbl">이 장면이 끝난 뒤 바뀌는 것</label><input class="input" data-w="변화" placeholder="관계, 감정, 정보의 변화">
+      <div class="row2">${[['누가', '등장인물'], ['언제', '시간·계절'], ['어디서', '장소'], ['무엇을', '사건'], ['어떻게', '방식·분위기'], ['왜', '동기·감정']].map(([k, p]) => `<label class="field"><span>${k}</span><input class="input" data-w="${k}" placeholder="${p}"></label>`).join('')}</div>
+      <label class="field"><span>이 장면이 끝난 뒤 바뀌는 것</span><input class="input" data-w="변화" placeholder="관계, 감정, 정보의 변화"></label>
       <button class="btn primary sm" id="sc-save">${icon('sticky-note', 15)} 메모로 저장</button>
     </div>`;
   bindGen(body, 'g-kw', () => {
@@ -141,7 +151,32 @@ function ideas(body) {
 }
 
 function names(body) {
-  body.innerHTML = `<div class="gen-grid">${genCard('g-kn', 'signature', '한국식 이름', '성 + 두 글자 이름을 조합해요.')}${genCard('g-wn', 'crown', '판타지풍 이름', '서양 판타지 느낌의 이름을 만들어요.')}</div>`;
-  bindGen(body, 'g-kn', () => { const l = Array.from({ length: 6 }, () => pick(SURN) + pick(SYL) + pick(SYL)); return { text: l.join(', '), html: `<div class="name-list">${l.map((n) => `<span>${n}</span>`).join('')}</div>` }; });
-  bindGen(body, 'g-wn', () => { const l = Array.from({ length: 6 }, () => pick(WEST1) + pick(WEST2)); return { text: l.join(', '), html: `<div class="name-list">${l.map((n) => `<span>${n}</span>`).join('')}</div>` }; });
+  body.innerHTML = `<div class="gen-grid">
+    ${genCard('g-kn', 'signature', '한국식 이름', '성 + 두 글자 이름을 조합해요.')}
+    ${genCard('g-ef', 'mountain', '동양풍 판타지 이름', '무협·선협·궁중물 느낌의 이름과 한자, 별호를 만들어요.')}
+    ${genCard('g-jp', 'flower-2', '일본식 이름', '성(苗字)과 이름을 한자·읽기와 함께 만들어요.')}
+    ${genCard('g-wn', 'crown', '서양 판타지 이름', '서양 판타지 느낌의 이름을 만들어요.')}
+  </div>`;
+  const list = (arr) => `<div class="name-list">${arr.map(([main, sub]) => `<span>${esc(main)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>`).join('')}</div>`;
+  bindGen(body, 'g-kn', () => { const l = Array.from({ length: 6 }, () => pick(SURN) + pick(SYL) + pick(SYL)); return { text: l.join(', '), html: list(l.map((n) => [n])) }; });
+  bindGen(body, 'g-ef', () => {
+    const l = Array.from({ length: 6 }, () => {
+      const s1 = pick(EF_SUR); let a = pick(EF_GIV); let b = pick(EF_GIV);
+      while (b[0] === a[0]) b = pick(EF_GIV);
+      const one = Math.random() < 0.25;
+      const ko = s1[0] + a[0] + (one ? '' : b[0]);
+      const hj = s1[1] + a[1] + (one ? '' : b[1]);
+      const e1 = pick(EF_EPI1); const e2 = pick(EF_EPI2);
+      return [ko, `${hj} · 별호 ${e1[0]}${e2[0]}(${e1[1]}${e2[1]})`];
+    });
+    return { text: l.map(([a, b]) => `${a} (${b})`).join('\n'), html: list(l) };
+  });
+  bindGen(body, 'g-jp', () => {
+    const l = Array.from({ length: 6 }, (_, i) => {
+      const sur = pick(JP_SUR); const g = pick(i % 2 ? JP_F : JP_M);
+      return [`${sur[1]} ${g[1]}`, `${sur[0]} ${g[0]} · ${i % 2 ? '여' : '남'}`];
+    });
+    return { text: l.map(([a, b]) => `${a} (${b})`).join('\n'), html: list(l) };
+  });
+  bindGen(body, 'g-wn', () => { const l = Array.from({ length: 6 }, () => pick(WEST1) + pick(WEST2)); return { text: l.join(', '), html: list(l.map((n) => [n])) }; });
 }

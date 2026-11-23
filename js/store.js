@@ -100,7 +100,7 @@ export async function unlock(passphrase, remember) {
 
 // ---------------- 조회 ----------------
 export function all(type) {
-  const arr = [...store.items.values()].filter((i) => !type || i.type === type);
+  const arr = [...store.items.values()].filter((i) => (type ? i.type === type : i.type !== 'settings'));
   return arr.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
 }
 export function get(id) { return store.items.get(id); }
@@ -250,12 +250,12 @@ export async function lockNow() {
 
 // ---------------- 백업 ----------------
 export function exportAll() {
-  return { app: 'O-note', version: 1, exported_at: now(), items: all().map(({ id, type, data, created_at, updated_at }) => ({ id, type, data, created_at, updated_at })) };
+  return { app: 'O-note', version: 1, exported_at: now(), items: [...all(), ...all('settings')].map(({ id, type, data, created_at, updated_at }) => ({ id, type, data, created_at, updated_at })) };
 }
 
 export function importAll(json, { replace = false } = {}) {
   if (!json || !Array.isArray(json.items)) throw new Error('올바른 O-note 백업 파일이 아니에요.');
-  const valid = ['folder', 'character', 'world', 'story', 'plot', 'memo', 'idea'];
+  const valid = ['folder', 'character', 'world', 'story', 'plot', 'memo', 'idea', 'settings'];
   if (replace) [...store.items.keys()].forEach((id) => { store.items.delete(id); store.deleted.add(id); });
   let n = 0;
   for (const it of json.items) {
@@ -272,3 +272,24 @@ export function importAll(json, { replace = false } = {}) {
 }
 
 export function clearLocal() { localStorage.removeItem(LOCAL_KEY); }
+
+// ---------------- 사용자 설정 (계정에 저장: 내 팔레트, 분류 목록 등) ----------------
+export const DEFAULT_CATS = {
+  character: ['주인공', '주요 인물', '조연'],
+  world: ['지역·장소', '세력·조직', '종족·생물', '용어·개념', '역사·사건', '능력·마법 체계', '아이템', '기타'],
+};
+export function settings() {
+  let s = all('settings')[0];
+  if (!s) {
+    s = { id: uuid(), type: 'settings', data: { palette: [], cats: JSON.parse(JSON.stringify(DEFAULT_CATS)) }, created_at: now(), updated_at: now() };
+    store.items.set(s.id, s);
+  }
+  s.data.palette = s.data.palette || [];
+  s.data.cats = s.data.cats || JSON.parse(JSON.stringify(DEFAULT_CATS));
+  return s;
+}
+export function updateSettings(fn) {
+  const s = settings();
+  update(s.id, (d) => fn(d) || d, { silent: true });
+  return s;
+}
