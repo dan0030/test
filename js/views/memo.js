@@ -6,6 +6,9 @@ import { pageHead, folderFilter, folderPicker, bindFolderPicker } from '../commo
 
 const MEMO_COLORS = ['#fff7c2', '#ffe0e6', '#dff5d8', '#dbeeff', '#ece2ff', '#ffe6cc', '#f1f1f1'];
 
+// 손가락으로 쓰는 기기(휴대폰·태블릿)인지: 마우스 없이 터치가 주 입력일 때
+const isTouch = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 export async function quickMemo(folderId, text = '') {
   const it = create('memo', { text, color: MEMO_COLORS[0], pinned: false, folders: folderId ? [folderId] : [] });
   await openMemo(it.id);
@@ -45,7 +48,7 @@ export function renderMemos(root, q) {
     ${pageHead('sticky-note', '메모', '대사 한 줄, 장면 아이디어, 설정 조각… 짧게 휘갈겨 두는 곳이에요.')}
     <div class="memo-quick">
       ${icon('pen-line', 18)}
-      <textarea id="mq" rows="1" placeholder="빠른 메모: 쓰고 Enter (줄바꿈은 Shift+Enter)"></textarea>
+      <textarea id="mq" rows="1" placeholder="${isTouch() ? '빠른 메모: 쓰고 추가 버튼을 눌러요 (Enter는 줄바꿈)' : '빠른 메모: 쓰고 Enter (줄바꿈은 Shift+Enter)'}"></textarea>
       <button class="btn primary sm" id="mq-add">${icon('plus', 16)}<span>추가</span></button>
     </div>
     ${folderFilter(f)}
@@ -64,7 +67,8 @@ export function renderMemos(root, q) {
     renderMemos(root, q);
     root.querySelector('#mq').focus();
   };
-  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); add(); } });
+  // 모바일(터치 기기)에서는 Enter = 줄바꿈(Shift+Enter와 같게), 추가는 버튼으로
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !isTouch()) { e.preventDefault(); add(); } });
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(160, ta.scrollHeight)}px`; });
   root.querySelector('#mq-add').onclick = add;
   root.querySelectorAll('.memo').forEach((el) => el.addEventListener('click', async (e) => {
