@@ -809,3 +809,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .u-row .u-top span { display: inline-flex; gap: 5px; align-items: center; color: var(--sub); }
 .u-row .progress { margin: 6px 0 2px; }
 .img-missing { outline: 1px dashed var(--line); background: var(--surface-2); min-width: 40px; min-height: 40px; }
+.mail-help { text-align: left; background: var(--surface-2); border-radius: 12px; padding: 10px 14px; margin: 12px 0; font-size: 13px; line-height: 1.6; }
+.mail-help ul { margin: 4px 0 0; padding-left: 18px; color: var(--sub); }
+.center-row { justify-content: center; }

@@ -177,23 +177,62 @@ function authScreen(mode = 'login') {
         const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName } } });
         if (error) throw new Error(signupErrorText(error));
         if (!data.session) {
-          app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p><button class="btn ghost" data-reload>로그인 화면으로</button></div>`;
+          app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p>
+            ${mailHelpHTML()}
+            <div class="btn-row center-row"><button class="btn primary" id="resend">${icon('send', 16)}<span>인증 메일 다시 보내기</span></button><button class="btn ghost" data-reload>로그인 화면으로</button></div></div>`;
+          bindResend($('#resend'), email);
           return;
         }
       } else {
         if (email.includes('@')) {
           const { error } = await sb.auth.signInWithPassword({ email, password: pw });
-          if (error) throw new Error(error.message.includes('Invalid') ? '아이디(이메일) 또는 비밀번호가 올바르지 않아요.' : error.message.includes('confirm') ? '이메일 인증을 먼저 완료해주세요.' : error.message);
+          if (error && /confirm/i.test(error.message)) { btn.disabled = false; return notConfirmed(email); }
+          if (error) throw new Error(error.message.includes('Invalid') ? '아이디(이메일) 또는 비밀번호가 올바르지 않아요.' : error.message);
         } else {
           await loginWithId(email, pw);
         }
       }
       location.reload();
     } catch (err) {
-      toast(err.message, 'error');
       btn.disabled = false;
+      if (err.notConfirmed) return notConfirmed('');
+      toast(err.message, 'error');
     }
   };
+}
+
+// ---------- 인증 메일 도움말 · 다시 보내기 ----------
+function mailHelpHTML() {
+  return `<div class="mail-help"><b>${icon('circle-question-mark', 14)} 메일이 안 오나요?</b>
+    <ul><li>도착까지 몇 분 걸릴 수 있어요.</li><li>네이버·다음은 <b>스팸메일함</b>과 <b>전체메일함</b>도 확인해 주세요.</li><li>그래도 없으면 아래 버튼으로 다시 보내거나, 다른 이메일(예: Gmail)로 가입해 보세요.</li></ul></div>`;
+}
+function bindResend(button, email) {
+  if (!button) return;
+  let wait = 0;
+  button.onclick = async () => {
+    if (wait > 0) return;
+    button.disabled = true;
+    const { error } = await sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) { toast(signupErrorText(error), 'error'); button.disabled = false; return; }
+    toast('인증 메일을 다시 보냈어요', 'ok');
+    wait = 60;
+    const label = button.querySelector('span');
+    const t = setInterval(() => { wait--; label.textContent = wait > 0 ? `다시 보내기 (${wait}초)` : '인증 메일 다시 보내기'; if (wait <= 0) { clearInterval(t); button.disabled = false; } }, 1000);
+  };
+}
+// 인증 전 계정으로 로그인 시도 → 다시 보내기 안내
+async function notConfirmed(email) {
+  await modal({
+    title: '이메일 인증이 필요해요',
+    body: `<p>가입할 때 받은 메일의 인증 링크를 눌러야 로그인할 수 있어요.</p>${mailHelpHTML()}
+      ${email ? '' : '<label class="lbl" for="rs-em">가입한 이메일</label><input class="input" id="rs-em" type="email" placeholder="you@example.com">'}
+      <div class="btn-row"><button class="btn primary" id="rs-go">${icon('send', 16)}<span>인증 메일 다시 보내기</span></button></div>`,
+    onOpen: (w) => {
+      const b = w.querySelector('#rs-go');
+      if (email) bindResend(b, email);
+      else b.onclick = () => { const e = w.querySelector('#rs-em').value.trim(); if (!/@/.test(e)) return toast('이메일을 입력해주세요', 'error'); bindResend(b, e); b.onclick(); };
+    },
+  });
 }
 
 // 가입 오류를 이해하기 쉬운 말로 (가입이 실패하면 계정은 만들어지지 않으니 다시 시도하면 됨)
@@ -219,7 +258,8 @@ async function loginWithId(username, password) {
   } catch { throw new Error('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.'); }
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body.access_token) {
-    const m = { email_not_confirmed: '이메일 인증을 먼저 완료해주세요.', rate_limited: '시도가 너무 많아요. 잠시 후 다시 시도해주세요.' };
+    if (body.error === 'email_not_confirmed') { const e = new Error(''); e.notConfirmed = true; throw e; }
+    const m = { rate_limited: '시도가 너무 많아요. 잠시 후 다시 시도해주세요.' };
     throw new Error(m[body.error] || '아이디(이메일) 또는 비밀번호가 올바르지 않아요.');
   }
   const { error } = await sb.auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token });
