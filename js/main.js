@@ -175,7 +175,7 @@ function authScreen(mode = 'login') {
         const { data: free } = await sb.rpc('username_available', { p_username: username });
         if (!free) throw new Error('이미 쓰이고 있거나 쓸 수 없는 아이디예요.');
         const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName } } });
-        if (error) throw error;
+        if (error) throw new Error(signupErrorText(error));
         if (!data.session) {
           app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p><button class="btn ghost" data-reload>로그인 화면으로</button></div>`;
           return;
@@ -194,6 +194,17 @@ function authScreen(mode = 'login') {
       btn.disabled = false;
     }
   };
+}
+
+// 가입 오류를 이해하기 쉬운 말로 (가입이 실패하면 계정은 만들어지지 않으니 다시 시도하면 됨)
+function signupErrorText(e) {
+  const m = `${e.message || ''} ${e.code || ''}`;
+  if (/over_email_send_rate_limit|rate limit|too many/i.test(m) || e.status === 429) return '지금 가입 요청이 많아 인증 메일을 보낼 수 없어요. 잠시 후 다시 시도해 주세요.';
+  if (/sending|confirmation email|smtp|unexpected_failure/i.test(m) || e.status === 500) return '지금 사이트의 메일 발송에 문제가 있어 인증 메일을 보낼 수 없어요. 가입 정보는 저장되지 않았으니 잠시 후 다시 시도해 주세요.';
+  if (/already registered|already exists/i.test(m)) return '이미 가입된 이메일이에요. 로그인하거나 비밀번호 찾기를 이용해 주세요.';
+  if (/password/i.test(m)) return '비밀번호가 조건에 맞지 않아요. 8자 이상, 영문과 숫자를 함께 넣어주세요.';
+  if (/email/i.test(m) && /invalid/i.test(m)) return '이메일 주소를 다시 확인해 주세요.';
+  return e.message || '가입하지 못했어요. 잠시 후 다시 시도해 주세요.';
 }
 
 // 아이디 로그인: 서버(Edge Function)가 아이디로 계정을 찾아 로그인하고 세션만 돌려줌 → 브라우저에 이메일이 노출되지 않음
