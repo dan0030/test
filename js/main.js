@@ -322,7 +322,8 @@ function mount() {
   onChange((kind) => {
     if (kind === 'status') drawSync();
     if (kind === 'quota') {
-      modal({ title: '저장 공간이 가득 찼어요', body: `<p>계정의 기록 저장 공간(2MB)을 다 썼어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.</p><p class="muted small">설정 → 저장 공간에서 사용량을 확인하고, 필요 없는 기록을 지우거나 백업 후 정리해 주세요. 정리하면 자동으로 다시 저장돼요.</p>`, actions: [{ label: '설정으로', cls: 'primary', value: () => { location.hash = '#/settings'; return true; } }] });
+      const site = store.quotaKind === 'site';
+      modal({ title: site ? '사이트 저장 공간이 거의 찼어요' : '저장 공간이 가득 찼어요', body: `<p>${site ? 'O-note 전체 무료 저장 공간이 거의 차서, 기본 할당량(1MB)을 넘긴 계정은 잠시 기록을 더 늘릴 수 없어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.' : '계정의 기록 저장 공간(5MB)을 다 썼어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.'}</p><p class="muted small">설정 → 저장 공간에서 사용량을 확인하고, 필요 없는 기록을 지우거나 백업 후 정리해 주세요. 정리하면 자동으로 다시 저장돼요.</p>`, actions: [{ label: '설정으로', cls: 'primary', value: () => { location.hash = '#/settings'; return true; } }] });
     }
     if (kind === 'remote') {
       // 글을 쓰는 중인 화면은 커서가 튀지 않도록 다시 그리지 않음

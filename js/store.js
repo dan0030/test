@@ -19,6 +19,7 @@ export const store = {
   lastSync: null,
   lastPull: 0,
   quotaHit: false,
+  quotaKind: '', // 'user' = 내 한도 초과, 'site' = 사이트 전체 공간 부족
   status: 'saved', // saved | saving | error | offline
   dirty: new Set(),
   deleted: new Set(),
@@ -262,7 +263,9 @@ export async function flush() {
     if (store.dirty.size) schedule();
   } catch (e) {
     console.error(e);
-    const quota = /quota_exceeded/.test(`${e.message} ${e.details || ''} ${e.hint || ''}`);
+    const msg = `${e.message} ${e.details || ''} ${e.hint || ''}`;
+    const quota = /quota_exceeded|site_full/.test(msg);
+    if (quota) store.quotaKind = /site_full/.test(msg) ? 'site' : 'user';
     if (quota && !store.quotaHit) { store.quotaHit = true; emit('quota'); }
     setStatus(quota ? 'quota' : 'error');
     clearTimeout(store.timer);

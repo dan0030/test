@@ -103,7 +103,9 @@ export function renderSettings(root, opts) {
     if (!u) { box.innerHTML = '<p class="muted small">사용량을 불러오지 못했어요.</p>'; return; }
     const kb = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.ceil(b / 1024)}KB`);
     const bar = (label, ic, used, limit, extra) => { const pct = Math.min(100, Math.round((used / limit) * 100)); return `<div class="u-row"><div class="u-top"><span>${icon(ic, 14)} ${label}</span><b>${kb(used)} / ${kb(limit)}</b></div><div class="progress"><div style="width:${pct}%;${pct >= 90 ? 'background:var(--danger)' : ''}"></div></div>${extra ? `<p class="muted small">${extra}</p>` : ''}</div>`; };
-    box.innerHTML = bar('글·설정 기록', 'file-text', u.db_bytes, u.db_limit, '') + bar('사진', 'image', u.img_bytes, u.img_limit, `사진 ${u.img_count}장`);
+    const tight = u.site_db_tight || u.site_img_tight;
+    box.innerHTML = bar('글·설정 기록', 'file-text', u.db_bytes, u.db_limit, '') + bar('사진', 'image', u.img_bytes, u.img_limit, `사진 ${u.img_count}장`)
+      + (tight ? `<p class="warn-box">${icon('triangle-exclamation-point', 14)} 지금 O-note 전체 무료 저장 공간이 거의 찼어요. 기본 할당량(기록 1MB · 사진 3MB)까지는 계속 쓸 수 있고, 그 이상은 공간이 생기면 다시 늘릴 수 있어요.</p>` : '');
   };
   if (cloud) drawUsage();
   $('#gc') && ($('#gc').onclick = async () => {
