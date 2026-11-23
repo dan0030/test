@@ -51,8 +51,47 @@ async function boot() {
     app.innerHTML = `<div class="center-box">${icon('cloud-off', 40)}<h2>데이터를 불러오지 못했어요</h2><p class="muted">${esc(e.message || '')}</p><button class="btn primary" data-reload>다시 시도</button></div>`;
     return;
   }
+  await loadProfile();
   if (store.locked) return unlockScreen();
+  if (!store.profile) await profileSetup();
   mount();
+}
+
+async function loadProfile() {
+  const { data } = await sb.from('profiles').select('username,display_name').maybeSingle();
+  store.profile = data || null;
+}
+
+// 아이디·이름이 없는 계정(GitHub 로그인, 이전 가입자)에게 설정 받기
+async function profileSetup() {
+  const v = await profileDialog({ title: '아이디와 이름을 정해주세요', intro: '이메일 대신 사이트에서 쓸 아이디와 이름이에요. 아이디로도 로그인할 수 있어요.' });
+  if (v) store.profile = v;
+}
+
+export async function profileDialog({ title = '아이디 · 이름 변경', intro = '', current = null } = {}) {
+  const res = await modal({
+    title,
+    body: `${intro ? `<p class="muted small">${esc(intro)}</p>` : ''}
+      <label class="lbl" for="pd-un">아이디</label><input class="input" id="pd-un" value="${esc(current?.username || '')}" placeholder="영문 소문자·숫자·_ 3~20자" maxlength="20">
+      <label class="lbl" for="pd-dn">이름 (닉네임)</label><input class="input" id="pd-dn" value="${esc(current?.display_name || '')}" placeholder="사이트에서 보일 이름" maxlength="30">`,
+    actions: [{ label: current ? '취소' : '나중에', cls: 'ghost', value: () => null }, {
+      label: '저장', cls: 'primary', icon: 'check', value: async (w) => {
+        const username = w.querySelector('#pd-un').value.trim().toLowerCase();
+        const display_name = w.querySelector('#pd-dn').value.trim();
+        if (!/^[a-z0-9_]{3,20}$/.test(username)) { toast('아이디는 영문 소문자, 숫자, 밑줄(_)로 3~20자예요.', 'error'); return false; }
+        if (!display_name) { toast('이름을 입력해주세요.', 'error'); return false; }
+        if (username !== current?.username) {
+          const { data: free } = await sb.rpc('username_available', { p_username: username });
+          if (!free) { toast('이미 쓰이고 있거나 쓸 수 없는 아이디예요.', 'error'); return false; }
+        }
+        const { error } = await sb.from('profiles').upsert({ id: store.user.id, username, display_name });
+        if (error) { toast(/duplicate|unique/.test(error.message) ? '이미 쓰이고 있는 아이디예요.' : '저장하지 못했어요.', 'error'); return false; }
+        return { username, display_name };
+      },
+    }],
+  });
+  if (res) toast('저장했어요', 'ok');
+  return res;
 }
 
 function loading(msg) { app.innerHTML = `<div class="center-box"><div class="spinner"></div><p class="muted">${esc(msg)}</p></div>`; }
@@ -68,8 +107,15 @@ function authScreen(mode = 'login') {
         <div class="seg full"><button class="${!isUp ? 'on' : ''}" data-m="login">로그인</button><button class="${isUp ? 'on' : ''}" data-m="signup">회원가입</button></div>
         ${CONFIG.ENABLE_GITHUB_LOGIN ? `<button class="btn gh full" id="gh">${icon('github', 18)} GitHub 계정으로 ${isUp ? '가입' : '로그인'}</button><div class="or"><span>또는 이메일</span></div>` : ''}
         <form id="af" autocomplete="on">
+          ${isUp ? `<div class="row2">
+            <div><label class="lbl" for="un">아이디</label><input class="input" id="un" required autocomplete="username" placeholder="영문 소문자·숫자·_ 3~20자" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}"></div>
+            <div><label class="lbl" for="dn">이름 (닉네임)</label><input class="input" id="dn" required autocomplete="nickname" placeholder="사이트에서 보일 이름" maxlength="30"></div>
+          </div>
+          <p class="muted small" id="un-msg">아이디는 로그인할 때 써요. 이름은 언제든 바꿀 수 있어요.</p>
           <label class="lbl" for="em">이메일</label>
           <input class="input" id="em" type="email" required autocomplete="email" placeholder="you@example.com">
+          <p class="muted small">가입 인증과 비밀번호 찾기에만 쓰여요. 다른 사람에게 공개되지 않아요.</p>` : `<label class="lbl" for="em">아이디 또는 이메일</label>
+          <input class="input" id="em" required autocomplete="username" placeholder="아이디 또는 이메일">`}
           <label class="lbl" for="pw">비밀번호</label>
           <input class="input" id="pw" type="password" required minlength="8" autocomplete="${isUp ? 'new-password' : 'current-password'}" placeholder="8자 이상">
           ${isUp ? `<input class="input" id="pw2" type="password" required minlength="8" autocomplete="new-password" placeholder="비밀번호 확인">
@@ -96,6 +142,23 @@ function authScreen(mode = 'login') {
     await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     toast('가입된 이메일이라면 재설정 메일을 보냈어요', 'ok'); // 계정 존재 여부를 드러내지 않음
   });
+  const unIn = $('#un');
+  if (unIn) {
+    let t;
+    unIn.addEventListener('input', () => {
+      clearTimeout(t);
+      const v = unIn.value.trim().toLowerCase();
+      const msg = $('#un-msg');
+      if (!v) { msg.textContent = '아이디는 로그인할 때 써요. 이름은 언제든 바꿀 수 있어요.'; msg.className = 'muted small'; return; }
+      if (!/^[a-z0-9_]{3,20}$/.test(v)) { msg.textContent = '영문 소문자, 숫자, 밑줄(_)로 3~20자를 입력해주세요.'; msg.className = 'small err-text'; return; }
+      t = setTimeout(async () => {
+        const { data } = await sb.rpc('username_available', { p_username: v });
+        if (unIn.value.trim().toLowerCase() !== v) return;
+        msg.textContent = data ? '사용할 수 있는 아이디예요.' : '이미 쓰이고 있거나 쓸 수 없는 아이디예요.';
+        msg.className = `small ${data ? 'ok-text' : 'err-text'}`;
+      }, 400);
+    });
+  }
   $('#af').onsubmit = async (e) => {
     e.preventDefault();
     const email = $('#em').value.trim(); const pw = $('#pw').value;
@@ -104,15 +167,25 @@ function authScreen(mode = 'login') {
       if (isUp) {
         if (pw !== $('#pw2').value) throw new Error('두 비밀번호가 달라요.');
         if (!/(?=.*[A-Za-z])(?=.*\d)/.test(pw)) throw new Error('비밀번호에 영문과 숫자를 함께 넣어주세요.');
-        const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname } });
+        const username = $('#un').value.trim().toLowerCase();
+        const displayName = $('#dn').value.trim();
+        if (!/^[a-z0-9_]{3,20}$/.test(username)) throw new Error('아이디는 영문 소문자, 숫자, 밑줄(_)로 3~20자예요.');
+        if (!displayName) throw new Error('이름(닉네임)을 입력해주세요.');
+        const { data: free } = await sb.rpc('username_available', { p_username: username });
+        if (!free) throw new Error('이미 쓰이고 있거나 쓸 수 없는 아이디예요.');
+        const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName } } });
         if (error) throw error;
         if (!data.session) {
           app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p><button class="btn ghost" data-reload>로그인 화면으로</button></div>`;
           return;
         }
       } else {
-        const { error } = await sb.auth.signInWithPassword({ email, password: pw });
-        if (error) throw new Error(error.message.includes('Invalid') ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message.includes('confirm') ? '이메일 인증을 먼저 완료해주세요.' : error.message);
+        if (email.includes('@')) {
+          const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+          if (error) throw new Error(error.message.includes('Invalid') ? '아이디(이메일) 또는 비밀번호가 올바르지 않아요.' : error.message.includes('confirm') ? '이메일 인증을 먼저 완료해주세요.' : error.message);
+        } else {
+          await loginWithId(email, pw);
+        }
       }
       location.reload();
     } catch (err) {
@@ -120,6 +193,25 @@ function authScreen(mode = 'login') {
       btn.disabled = false;
     }
   };
+}
+
+// 아이디 로그인: 서버(Edge Function)가 아이디로 계정을 찾아 로그인하고 세션만 돌려줌 → 브라우저에 이메일이 노출되지 않음
+async function loginWithId(username, password) {
+  let res;
+  try {
+    res = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/login-with-id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CONFIG.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
+    });
+  } catch { throw new Error('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.'); }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token) {
+    const m = { email_not_confirmed: '이메일 인증을 먼저 완료해주세요.', rate_limited: '시도가 너무 많아요. 잠시 후 다시 시도해주세요.' };
+    throw new Error(m[body.error] || '아이디(이메일) 또는 비밀번호가 올바르지 않아요.');
+  }
+  const { error } = await sb.auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token });
+  if (error) throw new Error(error.message);
 }
 
 function privacyModal() {
@@ -183,8 +275,8 @@ function mount() {
         <a class="logo" href="#/">${logoSvg()}<span>O-note</span></a>
         <nav class="nav">${NAV.map(([h, ic, n, d]) => `<a href="${h}" data-nav="${h}"><span class="n-ic">${icon(ic, 20)}</span><span class="n-t"><b>${n}</b><small>${d}</small></span></a>`).join('')}</nav>
         <div class="side-foot">
-          <a href="#/privacy" data-nav="#/privacy"><span class="n-ic">${icon('file-lock', 20)}</span><span class="n-t"><b>개인정보 처리방침</b><small>무엇을 왜 저장하는지</small></span></a>
-          <a href="#/settings" data-nav="#/settings"><span class="n-ic">${icon('settings', 20)}</span><span class="n-t"><b>설정</b><small>${esc(store.mode === 'cloud' ? store.user.email || '' : '체험 모드')}</small></span></a>
+          <a href="#/privacy" data-nav="#/privacy"><span class="n-ic">${icon('file-lock', 20)}</span><span class="n-t"><b>개인정보 처리방침</b></span></a>
+          <a href="#/settings" data-nav="#/settings"><span class="n-ic">${icon('settings', 20)}</span><span class="n-t"><b>설정</b><small>${esc(store.mode === 'cloud' ? (store.profile ? `${store.profile.display_name} · @${store.profile.username}` : '아이디 미설정') : '체험 모드')}</small></span></a>
         </div>
       </aside>
       <div class="side-back" id="side-back"></div>
@@ -228,7 +320,6 @@ function mount() {
   onChange((kind) => {
     if (kind === 'status') drawSync();
     if (kind === 'remote') {
-      toast('다른 기기의 변경 사항을 불러왔어요');
       // 글을 쓰는 중인 화면은 커서가 튀지 않도록 다시 그리지 않음
       const editing = /^#\/(s|read)\//.test(location.hash) || /\/edit/.test(location.hash) || document.querySelector('.modal-back');
       if (!editing) route();
@@ -305,7 +396,7 @@ function route() {
       case 'tools': r = Tools.renderTools(view, q); break;
       case 'bookmarks': r = Home.renderBookmarks(view); break;
       case 'search': r = Home.renderSearch(view, q); break;
-      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme }); break;
+      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
       case 'privacy': r = Privacy.renderPrivacy(view); break;
       default: view.innerHTML = '<div class="center-box"><h2>페이지를 찾을 수 없어요</h2><a class="btn primary" href="#/">홈으로</a></div>';
     }

@@ -90,3 +90,70 @@ $$;
 
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- =====================================================================
+-- 아이디 · 이름(닉네임) 프로필
+--  - 아이디: 영문 소문자/숫자/_ 3~20자, 중복 불가, 예약어 불가
+--  - 가입 시 메타데이터(username, display_name)로 자동 생성
+--  - 본인만 읽기/수정 (다른 이용자에게 공개되지 않음)
+--  - 아이디 로그인은 Edge Function(login-with-id)이 서버 안에서 처리해 이메일이 브라우저에 노출되지 않음
+-- =====================================================================
+create table if not exists public.profiles (
+  id           uuid primary key references auth.users(id) on delete cascade,
+  username     text not null unique check (username ~ '^[a-z0-9_]{3,20}$'),
+  display_name text not null check (char_length(display_name) between 1 and 30),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+alter table public.profiles enable row level security;
+alter table public.profiles force row level security;
+drop policy if exists "profiles_select_own" on public.profiles;
+drop policy if exists "profiles_insert_own" on public.profiles;
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_select_own" on public.profiles for select to authenticated using (id = (select auth.uid()));
+create policy "profiles_insert_own" on public.profiles for insert to authenticated with check (id = (select auth.uid()));
+create policy "profiles_update_own" on public.profiles for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
+revoke all on public.profiles from anon;
+grant select, insert, update on public.profiles to authenticated;
+
+create or replace function public.username_reserved(p text)
+returns boolean language sql immutable set search_path = '' as $$
+  select lower(p) = any (array['admin','administrator','root','system','support','help','onote','o_note','official','staff','moderator','null','undefined','test']);
+$$;
+
+create or replace function public.profiles_guard()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if tg_op = 'UPDATE' then new.id := old.id; new.created_at := old.created_at; end if;
+  new.username := lower(trim(new.username));
+  new.display_name := trim(new.display_name);
+  if public.username_reserved(new.username) then raise exception 'username_reserved'; end if;
+  new.updated_at := now();
+  return new;
+end; $$;
+drop trigger if exists profiles_guard_trg on public.profiles;
+create trigger profiles_guard_trg before insert or update on public.profiles for each row execute function public.profiles_guard();
+
+create or replace function public.handle_new_user_profile()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare u text := lower(trim(coalesce(new.raw_user_meta_data->>'username', '')));
+        n text := trim(coalesce(new.raw_user_meta_data->>'display_name', ''));
+begin
+  if u ~ '^[a-z0-9_]{3,20}$' and not public.username_reserved(u) then
+    if n = '' then n := u; end if;
+    insert into public.profiles (id, username, display_name) values (new.id, u, left(n, 30));
+  end if;
+  return new;
+end; $$;
+revoke all on function public.handle_new_user_profile() from public, anon, authenticated;
+drop trigger if exists on_auth_user_created_profile on auth.users;
+create trigger on_auth_user_created_profile after insert on auth.users for each row execute function public.handle_new_user_profile();
+
+create or replace function public.username_available(p_username text)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select lower(trim(p_username)) ~ '^[a-z0-9_]{3,20}$'
+     and not public.username_reserved(p_username)
+     and not exists (select 1 from public.profiles where username = lower(trim(p_username)));
+$$;
+revoke all on function public.username_available(text) from public;
+grant execute on function public.username_available(text) to anon, authenticated;

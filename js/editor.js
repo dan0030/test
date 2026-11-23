@@ -76,7 +76,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
     $('.st-count', host).innerHTML = `${icon('type', 14)} 공백 포함 <b>${c.withSpace.toLocaleString()}</b>자 · 제외 <b>${c.noSpace.toLocaleString()}</b>자 · 원고지 <b>${c.manuscript}</b>매`;
   };
   const fire = debounce(() => onChange?.(sanitize(area.innerHTML)), 500);
-  const markEmpty = () => area.classList.toggle('empty', !area.textContent.trim() && !area.querySelector('img,hr'));
+  const markEmpty = () => area.classList.toggle('is-empty', !area.textContent.trim() && !area.querySelector('img,hr'));
   const changed = () => { updateCount(); markEmpty(); fire(); };
 
   area.addEventListener('input', changed);

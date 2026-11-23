@@ -4,7 +4,8 @@ import { icon, esc, modal, toast, confirmBox, download, pickFile } from '../ui.j
 import { pageHead } from '../common.js';
 import { CONFIG } from '../config.js';
 
-export function renderSettings(root, { signOut, setTheme }) {
+export function renderSettings(root, opts) {
+  const { signOut, setTheme, editProfile } = opts;
   const cloud = store.mode === 'cloud';
   const vaultOn = !!store.vault;
   const theme = document.documentElement.dataset.theme || 'auto';
@@ -14,9 +15,15 @@ export function renderSettings(root, { signOut, setTheme }) {
     <div class="set-grid">
       <section class="card set">
         <h3>${icon('user-round', 18)} 계정</h3>
-        ${cloud ? `<p>${icon('mail', 15)} ${esc(store.user.email || '')} <span class="chip ok">${icon('cloud', 12)} 클라우드 동기화</span></p>
+        ${cloud ? `<dl class="acct">
+            <dt>${icon('user-round', 14)} 이름</dt><dd>${esc(store.profile?.display_name || '미설정')}</dd>
+            <dt>${icon('at-sign', 14)} 아이디</dt><dd>${store.profile ? `@${esc(store.profile.username)}` : '미설정'}</dd>
+            <dt>${icon('mail', 14)} 이메일</dt><dd>${esc(store.user.email || '')} <span class="muted small">(나만 보여요)</span></dd>
+          </dl>
+          <p><span class="chip ok">${icon('cloud', 12)} 클라우드 동기화</span></p>
           <p class="muted small">어떤 브라우저·기기에서든 같은 계정으로 로그인하면 기록이 그대로 이어져요.</p>
           <div class="btn-row">
+            <button class="btn ghost" id="prof">${icon('user-pen', 16)} 아이디·이름 변경</button>
             ${isOAuth ? '' : `<button class="btn ghost" id="pw">${icon('key-round', 16)} 비밀번호 변경</button>`}
             <button class="btn ghost" id="out">${icon('log-out', 16)} 로그아웃</button>
           </div>`
@@ -71,6 +78,7 @@ export function renderSettings(root, { signOut, setTheme }) {
 
   const $ = (s) => root.querySelector(s);
   $('#out') && ($('#out').onclick = signOut);
+  $('#prof') && ($('#prof').onclick = () => editProfile?.());
   $('#th').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; setTheme(b.dataset.t); root.querySelectorAll('#th button').forEach((x) => x.classList.toggle('on', x === b)); };
   $('#bk').onclick = () => { download(`o-note-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(exportAll(), null, 1), 'application/json'); toast('백업 파일을 저장했어요', 'ok'); };
   $('#rs').onclick = async () => {
@@ -106,11 +114,11 @@ export function renderSettings(root, { signOut, setTheme }) {
       } }],
     });
     if (!pass) return;
-    try { toast('모든 기록을 암호화하는 중…'); await enableVault(pass); toast('보안 금고를 켰어요. 모든 기록이 암호화됐어요.', 'ok'); renderSettings(root, { signOut, setTheme }); } catch (e) { toast(e.message, 'error'); }
+    try { toast('모든 기록을 암호화하는 중…'); await enableVault(pass); toast('보안 금고를 켰어요. 모든 기록이 암호화됐어요.', 'ok'); renderSettings(root, opts); } catch (e) { toast(e.message, 'error'); }
   });
   $('#v-off') && ($('#v-off').onclick = async () => {
     if (!(await confirmBox('암호화를 끄면 기록이 다시 일반 형태로 저장돼요. 계속할까요?', '끄기', true))) return;
-    try { await disableVault(); toast('보안 금고를 껐어요', 'ok'); renderSettings(root, { signOut, setTheme }); } catch (e) { toast(e.message, 'error'); }
+    try { await disableVault(); toast('보안 금고를 껐어요', 'ok'); renderSettings(root, opts); } catch (e) { toast(e.message, 'error'); }
   });
   $('#v-lock') && ($('#v-lock').onclick = async () => { await lockNow(); toast('이 기기에 기억된 금고 키를 지웠어요. 다시 열 때 암호가 필요해요.', 'ok'); setTimeout(() => location.reload(), 800); });
   $('#bye').onclick = async () => {

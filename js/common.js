@@ -1,12 +1,12 @@
 // 여러 화면에서 쓰는 공통 조각들
 import { all, get, update, create, remove } from './store.js';
-import { icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
+import { folderIcon, compressSquare, pickFile, icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
 import { colorPick, bindColorPick, pickedColor } from './colors.js';
 
 export function folderBadge(id) {
   const f = get(id);
   if (!f) return '';
-  return `<a class="fbadge" href="#/folder/${f.id}" style="--c:${f.data.color || '#ccc'}">${esc(f.data.emoji || '💞')} ${esc(f.data.title || '폴더')}</a>`;
+  return `<a class="fbadge" href="#/folder/${f.id}" style="--c:${f.data.color || '#ccc'}">${folderIcon(f.data)} ${esc(f.data.title || '폴더')}</a>`;
 }
 
 export function summary(it) {
@@ -38,7 +38,7 @@ export function itemCard(it, { showType = true } = {}) {
       <div class="ic-top">${showType ? `<span class="type-tag">${icon(t.icon, 13)} ${t.label}</span>` : ''}${d.bookmarked ? `<span class="star">${icon('bookmark', 14)}</span>` : ''}</div>
       <h4>${esc(d.title || '제목 없음')}</h4>
       <p>${esc(summary(it))}</p>
-      <div class="ic-foot">${(d.folders || []).slice(0, 2).map((f) => { const fo = get(f); return fo ? `<span class="mini-f" style="--c:${fo.data.color}">${esc(fo.data.emoji || '')} ${esc(fo.data.title)}</span>` : ''; }).join('')}<span class="muted">${timeAgo(it.updated_at)}</span></div>
+      <div class="ic-foot">${(d.folders || []).slice(0, 2).map((f) => { const fo = get(f); return fo ? `<span class="mini-f" style="--c:${fo.data.color}">${folderIcon(fo.data, '')} ${esc(fo.data.title)}</span>` : ''; }).join('')}<span class="muted">${timeAgo(it.updated_at)}</span></div>
     </div>
   </a>`;
 }
@@ -49,7 +49,7 @@ export function folderPicker(it) {
   const sel = new Set(it.data.folders || []);
   return `<div class="fpick" data-fpick="${it.id}">
     ${icon('folder-heart', 16)}
-    ${folders.map((f) => `<button type="button" class="fchip ${sel.has(f.id) ? 'on' : ''}" data-f="${f.id}" style="--c:${f.data.color || '#ccc'}">${esc(f.data.emoji || '')} ${esc(f.data.title)}</button>`).join('')}
+    ${folders.map((f) => `<button type="button" class="fchip ${sel.has(f.id) ? 'on' : ''}" data-f="${f.id}" style="--c:${f.data.color || '#ccc'}">${folderIcon(f.data, '')} ${esc(f.data.title)}</button>`).join('')}
     <button type="button" class="fchip add" data-fnew>${icon('plus', 14)} 새 페어 폴더</button>
   </div>`;
 }
@@ -88,7 +88,13 @@ export async function newFolderDialog(existing) {
       <label class="lbl">한 줄 소개</label>
       <input class="input" id="fd" value="${esc(d.desc || '')}" placeholder="예: 소꿉친구 → 라이벌 → 연인" maxlength="120">
       <label class="lbl">아이콘</label>
-      <div class="emo-pick">${emojis.map((e) => `<button type="button" class="${(d.emoji || '💞') === e ? 'on' : ''}" data-e="${e}">${e}</button>`).join('')}</div>
+      <div class="ico-cur"><span class="ico-preview" id="ico-prev">${folderIcon(d)}</span><span class="muted small">이모지를 고르거나, 직접 입력하거나, 이미지를 올려 나만의 아이콘을 쓸 수 있어요.</span></div>
+      <div class="emo-pick">${emojis.map((e) => `<button type="button" class="${!d.iconImg && (d.emoji || '💞') === e ? 'on' : ''}" data-e="${e}">${e}</button>`).join('')}</div>
+      <div class="ico-custom">
+        <input class="input" id="ico-text" maxlength="4" placeholder="직접 입력 (이모지·글자)" value="${esc(!d.iconImg && d.emoji && !emojis.includes(d.emoji) ? d.emoji : '')}">
+        <button type="button" class="btn ghost sm" id="ico-up">${icon('image-plus', 15)}<span>이미지 올리기</span></button>
+        <button type="button" class="btn ghost sm" id="ico-clear" ${d.iconImg ? '' : 'hidden'}>${icon('x', 15)}<span>이미지 지우기</span></button>
+      </div>
       <label class="lbl">색상</label>
       ${colorPick('fc', d.color || COLORS[0], COLORS)}`,
     actions: [{ label: '취소', cls: 'ghost', value: () => null }, {
@@ -97,7 +103,8 @@ export async function newFolderDialog(existing) {
         if (!title) { toast('폴더 이름을 입력해주세요', 'error'); return false; }
         return {
           title, desc: w.querySelector('#fd').value.trim(),
-          emoji: w.querySelector('.emo-pick .on')?.dataset.e || '💞',
+          emoji: w.querySelector('#ico-text').value.trim() || w.querySelector('.emo-pick .on')?.dataset.e || '💞',
+          iconImg: w._iconImg || '',
           color: pickedColor(w, 'fc') || COLORS[0],
           pair: { ...(d.pair || {}), a: w.querySelector('#fa').value.trim(), b: w.querySelector('#fb').value.trim() },
         };
@@ -105,10 +112,19 @@ export async function newFolderDialog(existing) {
     }],
     onOpen: (w) => {
       bindColorPick(w, 'fc');
-      ['.emo-pick'].forEach((s) => w.querySelector(s).addEventListener('click', (e) => {
+      w._iconImg = d.iconImg || '';
+      const prev = () => { w.querySelector('#ico-prev').innerHTML = folderIcon({ iconImg: w._iconImg, emoji: w.querySelector('#ico-text').value.trim() || w.querySelector('.emo-pick .on')?.dataset.e }); w.querySelector('#ico-clear').hidden = !w._iconImg; };
+      w.querySelector('.emo-pick').addEventListener('click', (e) => {
         const b = e.target.closest('button'); if (!b) return;
-        w.querySelectorAll(`${s} button`).forEach((x) => x.classList.toggle('on', x === b));
-      }));
+        w.querySelectorAll('.emo-pick button').forEach((x) => x.classList.toggle('on', x === b));
+        w.querySelector('#ico-text').value = ''; w._iconImg = ''; prev();
+      });
+      w.querySelector('#ico-text').addEventListener('input', () => { w._iconImg = ''; prev(); });
+      w.querySelector('#ico-up').onclick = async () => {
+        const f = await pickFile(); if (!f) return;
+        try { w._iconImg = await compressSquare(f, 128); prev(); } catch (err) { toast(err.message, 'error'); }
+      };
+      w.querySelector('#ico-clear').onclick = () => { w._iconImg = ''; prev(); };
     },
   });
   if (!res) return null;
@@ -194,7 +210,7 @@ export function pageHead(ic, title, desc, right = '') {
 export function folderFilter(current) {
   const fs = all('folder');
   if (!fs.length) return '';
-  return `<div class="filter-row">${icon('funnel', 15)}<a class="fchip ${!current ? 'on' : ''}" href="${location.hash.split('?')[0]}">전체</a>${fs.map((f) => `<a class="fchip ${current === f.id ? 'on' : ''}" style="--c:${f.data.color}" href="${location.hash.split('?')[0]}?f=${f.id}">${esc(f.data.emoji || '')} ${esc(f.data.title)}</a>`).join('')}</div>`;
+  return `<div class="filter-row">${icon('funnel', 15)}<a class="fchip ${!current ? 'on' : ''}" href="${location.hash.split('?')[0]}">전체</a>${fs.map((f) => `<a class="fchip ${current === f.id ? 'on' : ''}" style="--c:${f.data.color}" href="${location.hash.split('?')[0]}?f=${f.id}">${folderIcon(f.data, '')} ${esc(f.data.title)}</a>`).join('')}</div>`;
 }
 
 export { chips };

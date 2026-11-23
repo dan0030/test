@@ -183,3 +183,30 @@ export function chips(list, cls = '') { return (list || []).map((t) => `<span cl
 export function emptyState(ic, title, desc, btn = '') {
   return `<div class="empty">${icon(ic, 40)}<h3>${esc(title)}</h3><p>${esc(desc)}</p>${btn}</div>`;
 }
+
+// 페어 폴더 아이콘: 업로드한 이미지 > 직접 입력/선택한 이모지
+export function folderIcon(d, fallback = '💞', inlineStyle = '') {
+  if (d && d.iconImg && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(d.iconImg)) {
+    return `<img class="f-ico" src="${d.iconImg}" alt="" ${inlineStyle ? `style="${inlineStyle}"` : ''}>`;
+  }
+  return esc((d && d.emoji) || fallback);
+}
+
+// 정사각형으로 잘라 작게 저장 (폴더 아이콘용)
+export function compressSquare(file, size = 128) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) return reject(new Error('이미지 파일이 아니에요.'));
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(img.width, img.height);
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 읽지 못했어요.')); };
+    img.src = url;
+  });
+}

@@ -1,6 +1,6 @@
 // 페어 폴더 + 페어틀
 import { all, get, update, inFolder } from '../store.js';
-import { icon, esc, TYPES, emptyState, modal, toast, confirmBox, $ } from '../ui.js';
+import { folderIcon, icon, esc, TYPES, emptyState, modal, toast, confirmBox, $ } from '../ui.js';
 import { itemCard, newFolderDialog, pageHead } from '../common.js';
 import { remove } from '../store.js';
 import { openExport } from '../export.js';
@@ -22,7 +22,7 @@ export function renderList(root) {
     ${fs.length ? `<div class="folder-grid">${fs.map((f) => {
       const n = inFolder(f.id).length;
       return `<a class="folder-card" href="#/folder/${f.id}" style="--c:${f.data.color || '#ccc'}">
-        <div class="fc-emoji">${esc(f.data.emoji || '💞')}</div>
+        <div class="fc-emoji">${folderIcon(f.data)}</div>
         <h3>${esc(f.data.title)}</h3>
         ${f.data.pair?.a || f.data.pair?.b ? `<div class="fc-pair">${esc(f.data.pair.a || '?')} <span>×</span> ${esc(f.data.pair.b || '?')}</div>` : ''}
         <p>${esc(f.data.desc || '')}</p>
@@ -41,7 +41,7 @@ export function renderFolder(root, id, q) {
 
   root.innerHTML = `
     <header class="folder-hero" style="--c:${d.color || '#ccc'}">
-      <div class="fh-emoji">${esc(d.emoji || '💞')}</div>
+      <div class="fh-emoji">${folderIcon(d)}</div>
       <div class="fh-text">
         <h1>${esc(d.title)}</h1>
         ${d.pair?.a || d.pair?.b ? `<div class="fh-pair">${esc(d.pair.a || '?')} <span>×</span> ${esc(d.pair.b || '?')}</div>` : ''}
@@ -87,7 +87,7 @@ function renderPairtle(body, f, rerender) {
   body.innerHTML = `
     <p class="hint">${icon('info', 14)} 페어틀: 두 캐릭터를 같은 질문에 나란히 답하게 해보는 표예요. 칸을 눌러 바로 적고, 이미지로 저장해 공유할 수 있어요.</p>
     <div class="pairtle" style="--c:${d.color || '#ccc'}">
-      <div class="pt-head">${face(A, d.pair?.a)}<div class="pt-x">${esc(d.emoji || '💞')}</div>${face(B, d.pair?.b)}</div>
+      <div class="pt-head">${face(A, d.pair?.a)}<div class="pt-x">${folderIcon(d)}</div>${face(B, d.pair?.b)}</div>
       <div class="pt-rows">${rows.map((r, i) => `<div class="pt-row" data-i="${i}">
         <div class="pt-cell" contenteditable="true" data-k="a" data-ph="…">${esc(r.a || '')}</div>
         <div class="pt-label" contenteditable="true" data-k="label" data-ph="질문">${esc(r.label || '')}</div>
@@ -122,7 +122,7 @@ function renderPairtle(body, f, rerender) {
   body.querySelector('#pt-exp').onclick = () => {
     const img = (doc) => (doc?.data.image ? `<img src="${doc.data.image}" alt="" style="width:110px;height:110px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : '');
     const html = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-      <tr><td style="text-align:center;padding:1em;vertical-align:bottom;">${img(A)}<b style="font-size:1.1em">${esc(d.pair?.a || '')}</b></td><td style="text-align:center;font-size:1.6em;width:22%;">${esc(d.emoji || '💞')}</td><td style="text-align:center;padding:1em;vertical-align:bottom;">${img(B)}<b style="font-size:1.1em">${esc(d.pair?.b || '')}</b></td></tr>
+      <tr><td style="text-align:center;padding:1em;vertical-align:bottom;">${img(A)}<b style="font-size:1.1em">${esc(d.pair?.a || '')}</b></td><td style="text-align:center;font-size:1.6em;width:22%;">${folderIcon(d, '💞', 'width:48px;height:48px;object-fit:cover;border-radius:12px;')}</td><td style="text-align:center;padding:1em;vertical-align:bottom;">${img(B)}<b style="font-size:1.1em">${esc(d.pair?.b || '')}</b></td></tr>
       ${(d.pairtle || []).map((r) => `<tr><td style="padding:.7em;text-align:center;border-top:1px solid ${d.color};">${esc(r.a)}</td><td style="padding:.7em;text-align:center;border-top:1px solid ${d.color};font-weight:700;font-size:.85em;background:${d.color}33;">${esc(r.label)}</td><td style="padding:.7em;text-align:center;border-top:1px solid ${d.color};">${esc(r.b)}</td></tr>`).join('')}
     </table>`;
     openExport({ title: d.title, subtitle: d.desc, html });
