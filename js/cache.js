@@ -4,7 +4,8 @@
 const DB = 'onote-cache-v1';
 const OFF_KEY = 'onote-cache-off';
 
-export const cacheEnabled = () => { try { return localStorage.getItem(OFF_KEY) !== '1'; } catch { return false; } };
+// '로그인 상태 유지'를 끈 브라우저(공용 PC)에는 기기 사본도 남기지 않음
+export const cacheEnabled = () => { try { return localStorage.getItem(OFF_KEY) !== '1' && localStorage.getItem('onote-remember') !== '0'; } catch { return false; } };
 export function setCacheEnabled(on) { try { if (on) localStorage.removeItem(OFF_KEY); else localStorage.setItem(OFF_KEY, '1'); } catch { /* noop */ } }
 
 let dbp = null;

@@ -7,7 +7,7 @@ import { pageHead } from '../common.js';
 import { CONFIG } from '../config.js';
 
 export function renderSettings(root, opts) {
-  const { signOut, setTheme, editProfile } = opts;
+  const { signOut, setTheme, editProfile, rememberLogin, setRememberLogin } = opts;
   const cloud = store.mode === 'cloud';
   const vaultOn = !!store.vault;
   const theme = document.documentElement.dataset.theme || 'auto';
@@ -24,6 +24,7 @@ export function renderSettings(root, opts) {
           </dl>
           <p><span class="chip ok">${icon('cloud', 12)} 클라우드 동기화</span></p>
           <p class="muted small">어떤 브라우저·기기에서든 같은 계정으로 로그인하면 기록이 그대로 이어져요.</p>
+          <label class="check"><input type="checkbox" id="remember-set" ${rememberLogin?.() !== false ? 'checked' : ''}><span>이 브라우저에서 로그인 상태 유지 <span class="muted small">(끄면 브라우저를 닫을 때 로그아웃되고, 이 기기에 기록 사본도 남기지 않아요)</span></span></label>
           <div class="btn-row">
             <button class="btn ghost" id="prof">${icon('user-pen', 16)} 아이디·이름 변경</button>
             ${isOAuth ? '' : `<button class="btn ghost" id="pw">${icon('key-round', 16)} 비밀번호 변경</button>`}
@@ -48,7 +49,7 @@ export function renderSettings(root, opts) {
         <p class="muted small">O-note는 무료로 운영돼서 한 사람당 쓸 수 있는 공간이 정해져 있어요. 글은 자동으로 압축하고, 사진은 작게 줄여 저장해요.</p>
         <div id="usage" class="usage"><p class="muted small">사용량을 불러오는 중…</p></div>
         <div class="btn-row"><button class="btn ghost sm" id="gc">${icon('sparkles', 15)}<span>안 쓰는 사진 정리</span></button></div>
-        <label class="check"><input type="checkbox" id="devcache" ${cacheEnabled() ? 'checked' : ''}><span>이 기기에 기록 사본 저장 <span class="muted small">(다시 열 때 바뀐 것만 받아 빨라요. 로그아웃하면 지워져요. 여러 사람이 쓰는 컴퓨터라면 꺼두세요.)</span></span></label>
+        <label class="check"><input type="checkbox" id="devcache" ${cacheEnabled() ? 'checked' : ''} ${rememberLogin?.() === false ? 'disabled' : ''}><span>이 기기에 기록 사본 저장 <span class="muted small">(다시 열 때 바뀐 것만 받아 빨라요. 로그아웃하면 지워져요. 여러 사람이 쓰는 컴퓨터라면 꺼두세요.)</span></span></label>
       </section>` : ''}
 
       <section class="card set">
@@ -89,6 +90,11 @@ export function renderSettings(root, opts) {
   const $ = (s) => root.querySelector(s);
   $('#out') && ($('#out').onclick = signOut);
   $('#prof') && ($('#prof').onclick = () => editProfile?.());
+  $('#remember-set') && ($('#remember-set').onchange = (e) => {
+    setRememberLogin?.(e.target.checked);
+    toast(e.target.checked ? '브라우저를 껐다 켜도 로그인이 유지돼요' : '브라우저를 닫으면 로그아웃돼요 (이 기기의 사본도 지웠어요)', 'ok');
+    const dc = $('#devcache'); if (dc) { dc.checked = cacheEnabled(); dc.disabled = !e.target.checked; }
+  });
   $('#th').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; setTheme(b.dataset.t); root.querySelectorAll('#th button').forEach((x) => x.classList.toggle('on', x === b)); };
   $('#bk').onclick = async () => {
     toast('백업 파일을 만드는 중… (사진도 함께 담아요)');

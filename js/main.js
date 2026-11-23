@@ -25,6 +25,27 @@ function setTheme(t) {
 }
 try { const t = localStorage.getItem('onote-theme'); if (t && t !== 'auto') document.documentElement.dataset.theme = t; } catch { /* noop */ }
 
+// ---------- 로그인 상태 유지 ----------
+// 켜면(기본) 로그인 정보를 브라우저 저장소에 보관 → 브라우저나 컴퓨터를 껐다 켜도 로그인 유지
+// 끄면 탭/브라우저를 닫는 순간 로그인이 풀림 (여러 사람이 쓰는 컴퓨터용). 이때는 기기 사본도 남기지 않음
+const REMEMBER_KEY = 'onote-remember';
+export const rememberLogin = () => { try { return localStorage.getItem(REMEMBER_KEY) !== '0'; } catch { return true; } };
+const stores = () => { try { return rememberLogin() ? [localStorage, sessionStorage] : [sessionStorage, localStorage]; } catch { return [null, null]; } };
+const authStorage = {
+  getItem: (k) => { const [a] = stores(); try { return a ? a.getItem(k) : null; } catch { return null; } },
+  setItem: (k, v) => { const [a, b] = stores(); try { a?.setItem(k, v); b?.removeItem(k); } catch { /* 저장 불가 환경 */ } },
+  removeItem: (k) => { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch { /* noop */ } },
+};
+// 설정을 바꾸면 지금 로그인 정보도 알맞은 저장소로 옮김
+export function setRememberLogin(on) {
+  const from = on ? sessionStorage : localStorage; const to = on ? localStorage : sessionStorage;
+  try {
+    Object.keys(from).filter((k) => k.startsWith('sb-')).forEach((k) => { to.setItem(k, from.getItem(k)); from.removeItem(k); });
+    localStorage.setItem(REMEMBER_KEY, on ? '1' : '0');
+  } catch { /* noop */ }
+  if (!on) clearDeviceCache();
+}
+
 // ---------- 부팅 ----------
 async function boot() {
   const cloudReady = CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase;
@@ -33,7 +54,7 @@ async function boot() {
     return mount();
   }
   sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
-    auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: authStorage },
   });
   sb.auth.onAuthStateChange((ev) => {
     if (ev === 'PASSWORD_RECOVERY') setTimeout(recoverPassword, 300);
@@ -121,6 +142,7 @@ function authScreen(mode = 'login') {
           <input class="input" id="pw" type="password" required minlength="8" autocomplete="${isUp ? 'new-password' : 'current-password'}" placeholder="8자 이상">
           ${isUp ? `<input class="input" id="pw2" type="password" required minlength="8" autocomplete="new-password" placeholder="비밀번호 확인">
             <label class="agree"><input type="checkbox" id="agree" required> <span>만 14세 이상이며, <a href="#" id="pv">개인정보 처리방침</a>(이메일만 수집 · 탈퇴 시 즉시 삭제)에 동의해요.</span></label>` : ''}
+          ${isUp ? '' : `<label class="check remember"><input type="checkbox" id="remember" ${rememberLogin() ? 'checked' : ''}><span>로그인 상태 유지 <span class="muted small">(브라우저·컴퓨터를 껐다 켜도 유지돼요. 여러 사람이 쓰는 컴퓨터에서는 꺼주세요.)</span></span></label>`}
           <button class="btn primary full" id="go">${icon(isUp ? 'user-plus' : 'log-in', 18)} ${isUp ? '가입하기' : '로그인'}</button>
         </form>
         ${!isUp ? '<button class="link small" id="forgot">비밀번호를 잊으셨나요?</button>' : ''}
@@ -163,6 +185,7 @@ function authScreen(mode = 'login') {
   $('#af').onsubmit = async (e) => {
     e.preventDefault();
     const email = $('#em').value.trim(); const pw = $('#pw').value;
+    if ($('#remember')) setRememberLogin($('#remember').checked);
     const btn = $('#go'); btn.disabled = true;
     try {
       if (isUp) {
@@ -460,7 +483,7 @@ function route() {
       case 'tools': r = Tools.renderTools(view, q); break;
       case 'bookmarks': r = Home.renderBookmarks(view); break;
       case 'search': r = Home.renderSearch(view, q); break;
-      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
+      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
       case 'privacy': r = Privacy.renderPrivacy(view); break;
       default: view.innerHTML = '<div class="center-box"><h2>페이지를 찾을 수 없어요</h2><a class="btn primary" href="#/">홈으로</a></div>';
     }
