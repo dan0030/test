@@ -1,7 +1,7 @@
 // 페어 폴더 + 페어틀
 import { all, get, update, inFolder } from '../store.js';
 import { folderIcon, icon, esc, TYPES, emptyState, modal, toast, confirmBox, $ } from '../ui.js';
-import { itemCard, newFolderDialog, pageHead } from '../common.js';
+import { itemCard, newFolderDialog, pageHead, membersOf, membersHTML, rowVals } from '../common.js';
 import { remove } from '../store.js';
 import { openExport } from '../export.js';
 import { newWiki } from './wiki.js';
@@ -24,7 +24,7 @@ export function renderList(root) {
       return `<a class="folder-card" href="#/folder/${f.id}" style="--c:${f.data.color || '#ccc'}">
         <div class="fc-emoji">${folderIcon(f.data)}</div>
         <h3>${esc(f.data.title)}</h3>
-        ${f.data.pair?.a || f.data.pair?.b ? `<div class="fc-pair">${esc(f.data.pair.a || '?')} <span>×</span> ${esc(f.data.pair.b || '?')}</div>` : ''}
+        ${membersOf(f.data).length ? `<div class="fc-pair">${membersHTML(membersOf(f.data))}</div>` : ''}
         <p>${esc(f.data.desc || '')}</p>
         <div class="fc-stats">${['character', 'world', 'story', 'plot', 'memo'].map((t) => { const c = inFolder(f.id, t).length; return c ? `<span title="${TYPES[t].label}">${icon(TYPES[t].icon, 13)} ${c}</span>` : ''; }).join('')}${n ? '' : '<span class="muted">비어 있음</span>'}</div>
       </a>`;
@@ -44,7 +44,7 @@ export function renderFolder(root, id, q) {
       <div class="fh-emoji">${folderIcon(d)}</div>
       <div class="fh-text">
         <h1>${esc(d.title)}</h1>
-        ${d.pair?.a || d.pair?.b ? `<div class="fh-pair">${esc(d.pair.a || '?')} <span>×</span> ${esc(d.pair.b || '?')}</div>` : ''}
+        ${membersOf(d).length ? `<div class="fh-pair">${membersHTML(membersOf(d))}</div>` : ''}
         ${d.desc ? `<p>${esc(d.desc)}</p>` : ''}
       </div>
       <div class="fh-act">
@@ -81,33 +81,45 @@ function charDoc(name) {
 
 function renderPairtle(body, f, rerender) {
   const d = f.data;
-  const rows = d.pairtle || [];
-  const A = charDoc(d.pair?.a); const B = charDoc(d.pair?.b);
-  const face = (doc, name) => `<div class="pt-face">${doc?.data.image ? `<img src="${doc.data.image}" alt="">` : `<span class="pt-ph">${icon('user', 30)}</span>`}<b>${esc(name || '캐릭터')}</b>${doc ? `<a class="link small" href="#/w/${doc.id}">${icon('contact', 12)} 프로필</a>` : `<span class="muted small">같은 이름의 캐릭터 문서를 만들면 사진이 연결돼요</span>`}</div>`;
+  const mem = membersOf(d);
+  const cols = mem.length ? mem : ['캐릭터'];
+  const n = cols.length;
+  const classic = n === 2; // 2인: A | 질문 | B, 그 외: 질문 | 멤버1 | 멤버2 | …
+  const rows = (d.pairtle || []).map((r) => ({ label: r.label || '', v: rowVals(r, n) }));
+  const docs = cols.map((c) => (mem.length ? charDoc(c) : null));
+  const tmpl = classic ? 'minmax(0,1fr) minmax(90px,150px) minmax(0,1fr)' : `minmax(96px,150px) repeat(${n}, minmax(${n >= 4 ? 110 : 130}px, 1fr))`;
+  const minW = classic ? 0 : 150 + n * (n >= 4 ? 110 : 130);
+  const face = (doc, name) => `<div class="pt-face">${doc?.data.image ? `<img src="${esc(doc.data.image)}" alt="">` : `<span class="pt-ph">${icon('user', 26)}</span>`}<b>${esc(name)}</b>${doc ? `<a class="link small" href="#/w/${doc.id}">${icon('contact', 12)} 프로필</a>` : ''}</div>`;
+  const cell = (ri, j, val) => `<div class="pt-cell" contenteditable="true" data-j="${j}" data-ph="…">${esc(val)}</div>`;
+  const label = (r) => `<div class="pt-label" contenteditable="true" data-k="label" data-ph="질문">${esc(r.label)}</div>`;
+  const head = classic
+    ? `${face(docs[0], cols[0])}<div class="pt-x">${folderIcon(d)}</div>${face(docs[1], cols[1])}`
+    : `<div class="pt-x">${folderIcon(d)}</div>${cols.map((c, j) => face(docs[j], c)).join('')}`;
   body.innerHTML = `
-    <p class="hint">${icon('info', 14)} 페어틀: 두 캐릭터를 같은 질문에 나란히 답하게 해보는 표예요. 칸을 눌러 바로 적고, 이미지로 저장해 공유할 수 있어요.</p>
-    <div class="pairtle" style="--c:${d.color || '#ccc'}">
-      <div class="pt-head">${face(A, d.pair?.a)}<div class="pt-x">${folderIcon(d)}</div>${face(B, d.pair?.b)}</div>
-      <div class="pt-rows">${rows.map((r, i) => `<div class="pt-row" data-i="${i}">
-        <div class="pt-cell" contenteditable="true" data-k="a" data-ph="…">${esc(r.a || '')}</div>
-        <div class="pt-label" contenteditable="true" data-k="label" data-ph="질문">${esc(r.label || '')}</div>
-        <div class="pt-cell" contenteditable="true" data-k="b" data-ph="…">${esc(r.b || '')}</div>
-        <button class="icon-btn sm pt-rm" data-rm="${i}" title="행 삭제">${icon('x', 13)}</button></div>`).join('')}</div>
-    </div>
+    <p class="hint">${icon('info', 14)} 페어틀: ${n === 1 ? '캐릭터 한 명에게' : `${n}명의 캐릭터에게`} 같은 질문을 던져 나란히 답하게 해보는 표예요. 칸을 눌러 바로 적고, 이미지로 저장해 공유할 수 있어요.${mem.length ? '' : ' 폴더 수정에서 멤버를 추가해보세요.'}</p>
+    <div class="pt-scroll"><div class="pairtle ${classic ? 'classic' : 'multi'}" style="--c:${d.color || '#ccc'};min-width:${minW}px">
+      <div class="pt-head" style="grid-template-columns:${tmpl}">${head}</div>
+      <div class="pt-rows">${rows.map((r, i) => `<div class="pt-row" data-i="${i}" style="grid-template-columns:${tmpl}">
+        ${classic ? `${cell(i, 0, r.v[0])}${label(r)}${cell(i, 1, r.v[1])}` : `${label(r)}${r.v.map((v, j) => cell(i, j, v)).join('')}`}
+        <button class="icon-btn sm pt-rm" data-rm="${i}" title="질문 삭제" aria-label="질문 삭제">${icon('x', 13)}</button></div>`).join('')}</div>
+    </div></div>
     <div class="toolbar-row">
       <button class="btn ghost" id="pt-add">${icon('plus', 16)} 질문 추가</button>
       <button class="btn ghost" id="pt-preset">${icon('layout-template', 16)} 템플릿 불러오기</button>
       <button class="btn primary" id="pt-exp">${icon('image-down', 16)} 이미지·HTML로 내보내기</button>
     </div>`;
+  const store = () => rows.map((r) => ({ label: r.label, v: [...r.v] }));
   body.querySelector('.pt-rows').addEventListener('input', (e) => {
-    const c = e.target.closest('[data-k]'); const row = e.target.closest('.pt-row'); if (!c || !row) return;
-    update(f.id, (dd) => { dd.pairtle[+row.dataset.i][c.dataset.k] = c.innerText.trim(); return dd; }, { silent: true });
+    const c = e.target.closest('.pt-cell,.pt-label'); const row = e.target.closest('.pt-row'); if (!c || !row) return;
+    const r = rows[+row.dataset.i];
+    if (c.dataset.k === 'label') r.label = c.innerText.trim(); else r.v[+c.dataset.j] = c.innerText.trim();
+    update(f.id, { pairtle: store() }, { silent: true });
   });
   body.querySelector('.pt-rows').addEventListener('click', (e) => {
     const rm = e.target.closest('[data-rm]');
-    if (rm) { update(f.id, (dd) => { dd.pairtle.splice(+rm.dataset.rm, 1); return dd; }, { silent: true }); rerender(); }
+    if (rm) { rows.splice(+rm.dataset.rm, 1); update(f.id, { pairtle: store() }, { silent: true }); rerender(); }
   });
-  body.querySelector('#pt-add').onclick = () => { update(f.id, (dd) => { dd.pairtle = [...(dd.pairtle || []), { label: '', a: '', b: '' }]; return dd; }, { silent: true }); rerender(); };
+  body.querySelector('#pt-add').onclick = () => { rows.push({ label: '', v: Array(n).fill('') }); update(f.id, { pairtle: store() }, { silent: true }); rerender(); };
   body.querySelector('#pt-preset').onclick = async () => {
     const name = await modal({
       title: '페어틀 템플릿',
@@ -115,16 +127,22 @@ function renderPairtle(body, f, rerender) {
       onOpen: (w, close) => w.querySelector('.preset-list').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) close(b.dataset.p); }),
     });
     if (!name) return;
-    update(f.id, (dd) => { dd.pairtle = [...(dd.pairtle || []), ...PAIRTLE_PRESETS[name].map((label) => ({ label, a: '', b: '' }))]; return dd; }, { silent: true });
+    PAIRTLE_PRESETS[name].forEach((lb) => rows.push({ label: n === 1 ? lb.replace(/^상대/, '그 사람') : lb, v: Array(n).fill('') }));
+    update(f.id, { pairtle: store() }, { silent: true });
     toast('템플릿을 추가했어요', 'ok');
     rerender();
   };
   body.querySelector('#pt-exp').onclick = () => {
-    const img = (doc) => (doc?.data.image ? `<img src="${doc.data.image}" alt="" style="width:110px;height:110px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : '');
-    const html = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-      <tr><td style="text-align:center;padding:1em;vertical-align:bottom;">${img(A)}<b style="font-size:1.1em">${esc(d.pair?.a || '')}</b></td><td style="text-align:center;font-size:1.6em;width:22%;">${folderIcon(d, '💞', 'width:48px;height:48px;object-fit:cover;border-radius:12px;')}</td><td style="text-align:center;padding:1em;vertical-align:bottom;">${img(B)}<b style="font-size:1.1em">${esc(d.pair?.b || '')}</b></td></tr>
-      ${(d.pairtle || []).map((r) => `<tr><td style="padding:.7em;text-align:center;border-top:1px solid ${d.color};">${esc(r.a)}</td><td style="padding:.7em;text-align:center;border-top:1px solid ${d.color};font-weight:700;font-size:.85em;background:${d.color}33;">${esc(r.label)}</td><td style="padding:.7em;text-align:center;border-top:1px solid ${d.color};">${esc(r.b)}</td></tr>`).join('')}
+    const c = d.color || '#ccc';
+    const img = (doc) => (doc?.data.image ? `<img src="${doc.data.image}" alt="" style="width:${n >= 4 ? 72 : 96}px;height:${n >= 4 ? 72 : 96}px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : '');
+    const td = (v, extra = '') => `<td style="padding:.7em;text-align:center;border-top:1px solid ${c};word-break:keep-all;${extra}">${esc(v)}</td>`;
+    const lab = (v) => td(v, `font-weight:700;font-size:.85em;background:${c}33;`);
+    const faceTd = (j) => `<td style="text-align:center;padding:1em .5em;vertical-align:bottom;">${img(docs[j])}<b style="font-size:1.05em">${esc(cols[j])}</b></td>`;
+    const iconTd = `<td style="text-align:center;font-size:1.6em;width:${classic ? '22%' : '18%'};">${folderIcon(d, '💞', 'width:44px;height:44px;object-fit:cover;border-radius:12px;')}</td>`;
+    const headRow = classic ? `${faceTd(0)}${iconTd}${faceTd(1)}` : `${iconTd}${cols.map((_, j) => faceTd(j)).join('')}`;
+    const html = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>${headRow}</tr>
+      ${rows.map((r) => `<tr>${classic ? `${td(r.v[0])}${lab(r.label)}${td(r.v[1])}` : `${lab(r.label)}${r.v.map((v) => td(v)).join('')}`}</tr>`).join('')}
     </table>`;
-    openExport({ title: d.title, subtitle: d.desc, html });
+    openExport({ title: d.title, subtitle: [membersOf(d).join(' × '), d.desc].filter(Boolean).join(' · '), html });
   };
 }

@@ -59,7 +59,7 @@ export function renderSearch(root, q) {
     const d = it.data;
     const hay = [d.title, d.subtitle, d.summary, d.desc, d.text, d.category, d.searchText, (d.tags || []).join(' '), htmlToText(d.body || ''),
       ...(d.chapters || []).map((c) => `${c.title} ${htmlToText(c.html)}`), ...(d.events || []).map((e) => `${e.title} ${e.desc} ${(e.chars || []).join(' ')} ${e.place}`),
-      ...(d.infobox || []).map((r) => `${r.k} ${r.v}`), ...(d.pairtle || []).map((r) => `${r.label} ${r.a} ${r.b}`)].join(' ').toLowerCase();
+      ...(d.infobox || []).map((r) => `${r.k} ${r.v}`), ...(d.pairtle || []).map((r) => `${r.label} ${(Array.isArray(r.v) ? r.v : [r.a, r.b]).join(' ')}`), ...(d.members || [])].join(' ').toLowerCase();
     const i = hay.indexOf(lower);
     return i < 0 ? null : hay.slice(Math.max(0, i - 30), i + 60);
   };

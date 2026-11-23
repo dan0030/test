@@ -367,6 +367,7 @@ function route() {
   cleanup = null;
   const view = $('#view');
   if (!view) return;
+  $('#side')?.classList.remove('open'); $('#side-back')?.classList.remove('open');
   const raw = location.hash.slice(1) || '/';
   const [path, qs] = raw.split('?');
   const q = new URLSearchParams(qs || '');

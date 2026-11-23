@@ -3,6 +3,11 @@ import { all, get, update, create, remove } from './store.js';
 import { folderIcon, compressSquare, pickFile, icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
 import { colorPick, bindColorPick, pickedColor } from './colors.js';
 
+// 폴더 멤버: 1명(단독)·2명(페어)·3명 이상(다인) 모두 지원. 예전 {pair:{a,b}} 형식도 읽음
+export const membersOf = (d) => (Array.isArray(d?.members) ? d.members : [d?.pair?.a, d?.pair?.b]).map((x) => String(x || '').trim()).filter(Boolean);
+export const membersHTML = (list) => list.map((m) => `<span class="mem">${esc(m)}</span>`).join('<span class="x">×</span>');
+export const rowVals = (r, n) => { const v = Array.isArray(r.v) ? r.v : [r.a, r.b]; return Array.from({ length: n }, (_, i) => v[i] || ''); };
+
 export function folderBadge(id) {
   const f = get(id);
   if (!f) return '';
@@ -72,6 +77,20 @@ export function bindFolderPicker(root, it, rerender) {
   });
 }
 
+function memberRow(name, orig) {
+  return `<div class="mem-row" data-orig="${orig}"><input class="input" value="${esc(name)}" placeholder="캐릭터 이름" maxlength="40"><button type="button" class="icon-btn sm" data-mup title="앞으로">${icon('chevron-up', 14)}</button><button type="button" class="icon-btn sm" data-mrm title="빼기">${icon('x', 14)}</button></div>`;
+}
+// 멤버 목록을 읽고, 순서 변경·삭제에 맞춰 페어틀 답변 칸도 옮김
+function readMembers(w, d) {
+  const rows = [...w.querySelectorAll('#fm .mem-row')].map((r) => ({ name: r.querySelector('input').value.trim(), orig: r.dataset.orig })).filter((r) => r.name);
+  const oldN = membersOf(d).length;
+  const pairtle = (d.pairtle || []).map((r) => {
+    const old = rowVals(r, Math.max(oldN, 2));
+    return { label: r.label || '', v: rows.map((m) => (m.orig === '' ? '' : old[+m.orig] || '')) };
+  });
+  return { members: rows.map((m) => m.name), pair: null, pairtle };
+}
+
 export async function newFolderDialog(existing) {
   const d = existing?.data || {};
   const emojis = ['💞', '💘', '🌙', '🌸', '🔥', '🗡️', '🍰', '⭐', '🐺', '🦊', '🌊', '🎀', '☕', '🎭', '👑', '🪐'];
@@ -81,10 +100,10 @@ export async function newFolderDialog(existing) {
       <p class="muted small">${icon('info', 14)} 페어(CP)·작품·AU별로 폴더를 만들면 캐릭터, 세계관, 연성, 플롯을 한곳에서 모아볼 수 있어요.</p>
       <label class="lbl">폴더 이름 (페어 이름)</label>
       <input class="input" id="fn" value="${esc(d.title || '')}" placeholder="예: 공×수, 작품명 AU" maxlength="60">
-      <div class="row2">
-        <div><label class="lbl">왼쪽 캐릭터</label><input class="input" id="fa" value="${esc(d.pair?.a || '')}" placeholder="예: 캐릭터 A"></div>
-        <div><label class="lbl">오른쪽 캐릭터</label><input class="input" id="fb" value="${esc(d.pair?.b || '')}" placeholder="예: 캐릭터 B"></div>
-      </div>
+      <label class="lbl">멤버 (캐릭터)</label>
+      <p class="muted small">1명이면 단독·드림 폴더, 2명이면 페어, 3명 이상이면 트리오·그룹 같은 다인 페어가 돼요.</p>
+      <div class="mem-list" id="fm">${(existing ? membersOf(d) : ['', '']).map((m, i) => memberRow(m, existing ? i : '')).join('')}</div>
+      <button type="button" class="btn ghost sm" id="fm-add">${icon('user-plus', 15)}<span>멤버 추가</span></button>
       <label class="lbl">한 줄 소개</label>
       <input class="input" id="fd" value="${esc(d.desc || '')}" placeholder="예: 소꿉친구 → 라이벌 → 연인" maxlength="120">
       <label class="lbl">아이콘</label>
@@ -106,12 +125,22 @@ export async function newFolderDialog(existing) {
           emoji: w.querySelector('#ico-text').value.trim() || w.querySelector('.emo-pick .on')?.dataset.e || '💞',
           iconImg: w._iconImg || '',
           color: pickedColor(w, 'fc') || COLORS[0],
-          pair: { ...(d.pair || {}), a: w.querySelector('#fa').value.trim(), b: w.querySelector('#fb').value.trim() },
+          ...readMembers(w, d),
         };
       },
     }],
     onOpen: (w) => {
       bindColorPick(w, 'fc');
+      const fm = w.querySelector('#fm');
+      w.querySelector('#fm-add').onclick = () => {
+        if (fm.children.length >= 12) return toast('멤버는 12명까지 넣을 수 있어요');
+        fm.insertAdjacentHTML('beforeend', memberRow('', '')); fm.lastElementChild.querySelector('input').focus();
+      };
+      fm.addEventListener('click', (e) => { const b = e.target.closest('[data-mrm]'); if (b) b.closest('.mem-row').remove(); });
+      fm.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-mup]'); if (!b) return;
+        const row = b.closest('.mem-row'); if (row.previousElementSibling) fm.insertBefore(row, row.previousElementSibling);
+      });
       w._iconImg = d.iconImg || '';
       const prev = () => { w.querySelector('#ico-prev').innerHTML = folderIcon({ iconImg: w._iconImg, emoji: w.querySelector('#ico-text').value.trim() || w.querySelector('.emo-pick .on')?.dataset.e }); w.querySelector('#ico-clear').hidden = !w._iconImg; };
       w.querySelector('.emo-pick').addEventListener('click', (e) => {
