@@ -221,22 +221,18 @@ function authScreen(mode = 'login', invite = '') {
         if (!free) throw new Error('이미 쓰이고 있거나 쓸 수 없는 아이디예요.');
         const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName, invite: inviteCode } } });
         if (error) throw new Error(signupErrorText(error));
-        // 이메일 확인 전에도 로그인할 수 있게 설정된 경우 바로 들어감 (확인은 들어가서 안내)
-        if (!data.session) {
-          const { data: li } = await sb.auth.signInWithPassword({ email, password: pw }).catch(() => ({ data: null }));
-          if (li?.session) { location.reload(); return; }
-        }
         if (!data.session) {
           app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p>
             ${mailHelpHTML()}
-            <div class="btn-row center-row"><button class="btn primary" id="resend">${icon('send', 16)}<span>인증 메일 다시 보내기</span></button><button class="btn ghost" data-reload>로그인 화면으로</button></div></div>`;
+            <div class="btn-row center-row"><button class="btn primary" id="resend">${icon('send', 16)}<span>인증 메일 다시 보내기</span></button><button class="btn ghost" id="fix-em">${icon('pencil', 16)}<span>이메일을 잘못 적었어요</span></button><button class="btn ghost" data-reload>로그인 화면으로</button></div></div>`;
           bindResend($('#resend'), email);
+          $('#fix-em').onclick = () => fixEmailDialog({ login: username, pw });
           return;
         }
       } else {
         if (email.includes('@')) {
           const { error } = await sb.auth.signInWithPassword({ email, password: pw });
-          if (error && /confirm/i.test(error.message)) { btn.disabled = false; return notConfirmed(email); }
+          if (error && /confirm/i.test(error.message)) { btn.disabled = false; return notConfirmed(email, { login: email, pw }); }
           if (error) throw new Error(error.message.includes('Invalid') ? '아이디(이메일) 또는 비밀번호가 올바르지 않아요.' : error.message);
         } else {
           await loginWithId(email, pw);
@@ -245,7 +241,7 @@ function authScreen(mode = 'login', invite = '') {
       location.reload();
     } catch (err) {
       btn.disabled = false;
-      if (err.notConfirmed) return notConfirmed('');
+      if (err.notConfirmed) return notConfirmed('', { login: email, pw });
       toast(err.message, 'error');
     }
   };
@@ -270,18 +266,75 @@ function bindResend(button, email) {
     const t = setInterval(() => { wait--; label.textContent = wait > 0 ? `다시 보내기 (${wait}초)` : '인증 메일 다시 보내기'; if (wait <= 0) { clearInterval(t); button.disabled = false; } }, 1000);
   };
 }
-// 인증 전 계정으로 로그인 시도 → 다시 보내기 안내
-async function notConfirmed(email) {
-  await modal({
+// 인증 전 계정으로 로그인 시도 → 다시 보내기 안내 + 이메일을 잘못 적었다면 고치기
+async function notConfirmed(email, cred = {}) {
+  const r = await modal({
     title: '이메일 인증이 필요해요',
     body: `<p>가입할 때 받은 메일의 인증 링크를 눌러야 로그인할 수 있어요.</p>${mailHelpHTML()}
       ${email ? '' : '<label class="lbl" for="rs-em">가입한 이메일</label><input class="input" id="rs-em" type="email" placeholder="you@example.com">'}
-      <div class="btn-row"><button class="btn primary" id="rs-go">${icon('send', 16)}<span>인증 메일 다시 보내기</span></button></div>`,
-    onOpen: (w) => {
+      <div class="btn-row"><button class="btn primary" id="rs-go">${icon('send', 16)}<span>인증 메일 다시 보내기</span></button>
+        <button class="btn ghost" id="rs-fix">${icon('pencil', 16)}<span>이메일을 잘못 적었어요</span></button></div>`,
+    onOpen: (w, close) => {
       const b = w.querySelector('#rs-go');
       if (email) bindResend(b, email);
       else b.onclick = () => { const e = w.querySelector('#rs-em').value.trim(); if (!/@/.test(e)) return toast('이메일을 입력해주세요', 'error'); bindResend(b, e); b.onclick(); };
+      w.querySelector('#rs-fix').onclick = () => close('fix');
     },
+  });
+  if (r === 'fix') fixEmailDialog(cred);
+}
+
+// 이메일을 잘못 적은 확인 전 계정: 아이디(이메일)+비밀번호로 본인 확인 → 새 이메일로 바꾸고 확인 메일 다시 받기
+async function fixEmailDialog({ login = '', pw = '' } = {}) {
+  await modal({
+    title: '이메일 고치기',
+    body: `<p class="muted small">가입할 때 이메일을 잘못 적었다면 여기서 고칠 수 있어요. 본인 확인을 위해 가입할 때 정한 비밀번호가 필요해요.</p>
+      <label class="lbl" for="fx-id">아이디 또는 지금 이메일</label><input class="input" id="fx-id" autocomplete="username" value="${esc(login)}" placeholder="아이디 또는 가입한 이메일">
+      <label class="lbl" for="fx-pw">비밀번호</label><input class="input" id="fx-pw" type="password" autocomplete="current-password">
+      <label class="lbl" for="fx-em">새 이메일</label><input class="input" id="fx-em" type="email" autocomplete="email" placeholder="you@example.com">
+      <p class="muted small">바꾸면 새 이메일로 인증 메일을 다시 보내요. 이메일 고치기는 하루 3번까지 할 수 있어요.</p>`,
+    onOpen: (w) => { w.querySelector('#fx-pw').value = pw; setTimeout(() => w.querySelector(login && pw ? '#fx-em' : '#fx-id').focus(), 60); },
+    actions: [{ label: '취소', cls: 'ghost', value: () => null }, {
+      label: '바꾸고 메일 받기', cls: 'primary', icon: 'send', value: async (w) => {
+        const id = w.querySelector('#fx-id').value.trim();
+        const pass = w.querySelector('#fx-pw').value;
+        const email = w.querySelector('#fx-em').value.trim().toLowerCase();
+        if (!id || !pass) { toast('아이디(또는 이메일)와 비밀번호를 입력해주세요', 'error'); return false; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('새 이메일 주소를 다시 확인해주세요', 'error'); return false; }
+        let res;
+        try {
+          res = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/fix-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: CONFIG.SUPABASE_ANON_KEY },
+            body: JSON.stringify({ login: id, password: pass, email, redirectTo: location.origin + location.pathname }),
+          });
+        } catch { toast('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.', 'error'); return false; }
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.ok) {
+          const m = {
+            invalid: '아이디(이메일) 또는 비밀번호가 올바르지 않아요.',
+            invalid_email: '새 이메일 주소를 다시 확인해주세요.',
+            same_email: '지금과 같은 이메일이에요. 인증 메일 다시 보내기를 이용해주세요.',
+            already_confirmed: '이미 인증이 끝난 계정이에요. 그냥 로그인하면 돼요.',
+            email_taken: '이미 다른 계정이 쓰는 이메일이에요.',
+            too_many: '오늘은 이메일을 더 고칠 수 없어요. 내일 다시 시도해주세요.',
+            rate_limited: '시도가 너무 많아요. 잠시 후 다시 시도해주세요.',
+          };
+          toast(m[body.error] || '이메일을 고치지 못했어요. 잠시 후 다시 시도해주세요.', 'error');
+          return false;
+        }
+        return { email, mail: body.mail };
+      },
+    }],
+  }).then((ok) => {
+    if (!ok) return;
+    modal({
+      title: '새 이메일로 인증 메일을 보냈어요',
+      body: `<p><b>${esc(ok.email)}</b>로 ${ok.mail === 'sent' ? '인증 메일을 보냈어요.' : '이메일을 바꿨어요. 인증 메일은 잠시 후 \'인증 메일 다시 보내기\'로 받아주세요.'} 메일의 링크를 누르면 가입이 끝나고 로그인할 수 있어요.</p><p class="muted small">${icon('circle-question-mark', 13)} 메일이 안 보이면 스팸메일함·전체메일함도 확인해 주세요. 그래도 없으면 로그인을 다시 시도해 '인증 메일 다시 보내기'를 눌러주세요.</p>`,
+      actions: [{ label: '확인', cls: 'primary', value: () => true }],
+    });
+    const em = document.querySelector('#em');
+    if (em && /@/.test(em.value)) em.value = ok.email;
   });
 }
 

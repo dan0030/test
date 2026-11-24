@@ -465,3 +465,31 @@ alter table public.email_change_log enable row level security;
 alter table public.email_change_log force row level security;
 revoke all on public.email_change_log from public, anon, authenticated;
 revoke all on sequence public.email_change_log_id_seq from public, anon, authenticated;
+
+-- 로그인 화면 '이메일을 잘못 적었어요' (Edge Function fix-email 전용)
+create table if not exists public.fix_email_fail (
+  id      bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  at      timestamptz not null default now()
+);
+create index if not exists fix_email_fail_user_idx on public.fix_email_fail (user_id, at desc);
+alter table public.fix_email_fail enable row level security;
+alter table public.fix_email_fail force row level security;
+revoke all on public.fix_email_fail from public, anon, authenticated;
+revoke all on sequence public.fix_email_fail_id_seq from public, anon, authenticated;
+
+create or replace function public.onote_user_by_email(p_email text)
+returns table (id uuid, confirmed boolean)
+language sql stable security definer set search_path = '' as $$
+  select u.id, u.email_confirmed_at is not null from auth.users u where lower(u.email) = lower(trim(p_email)) limit 1;
+$$;
+revoke all on function public.onote_user_by_email(text) from public, anon, authenticated;
+grant execute on function public.onote_user_by_email(text) to service_role;
+
+create or replace function public.onote_prune_email_logs()
+returns void language sql security definer set search_path = '' as $$
+  delete from public.fix_email_fail where at < now() - interval '1 day';
+  delete from public.email_change_log where at < now() - interval '2 days';
+$$;
+revoke all on function public.onote_prune_email_logs() from public, anon, authenticated;
+grant execute on function public.onote_prune_email_logs() to service_role;
