@@ -6,6 +6,7 @@ import { widgetsHTML, bindWidgets } from './widgets.js';
 import { itemCard, pageHead, summary, itemHref } from '../common.js';
 import { todayWritten } from './story.js';
 import { todayPomos } from '../pomodoro.js';
+import { emailNoticeHTML, bindEmailActions, isUnconfirmed, refreshUser } from '../email.js';
 
 export function renderHome(root) {
   const recent = all().filter((i) => i.type !== 'folder').slice(0, 6);
@@ -32,6 +33,7 @@ export function renderHome(root) {
         <div>${icon('files', 18)}<b>${all().filter((i) => i.type !== 'folder').length}</b><span>전체 기록</span></div>
       </div>
     </section>
+    ${emailNoticeHTML()}
     ${store.mode === 'local' ? `<div class="notice">${icon('triangle-exclamation-point', 18)}<div><b>체험 모드</b>로 사용 중이에요. 기록이 이 브라우저에만 저장돼요. 다른 기기와 동기화하려면 <a href="#/settings">설정</a>에서 안내를 확인하세요.</div></div>` : ''}
     <h2 class="sec-h">${icon('layout-dashboard', 18)} <span>내 작업 현황</span></h2>
     ${widgetsHTML()}
@@ -44,6 +46,9 @@ export function renderHome(root) {
     <h2 class="sec-h">${icon('rotate-ccw-clock', 18)} 최근 기록</h2>
     ${recent.length ? `<div class="grid">${recent.map((i) => itemCard(i)).join('')}</div>` : emptyState('sparkles', '아직 기록이 없어요', '위의 바로 시작하기에서 첫 기록을 만들어보세요!')}`;
   bindWidgets(root);
+  bindEmailActions(root, () => renderHome(root));
+  // 확인 링크를 다른 곳에서 눌렀다면 안내를 치움
+  if (isUnconfirmed()) refreshUser().then(() => { if (!isUnconfirmed()) root.querySelector('.email-notice')?.remove(); });
 }
 
 export function renderBookmarks(root) {

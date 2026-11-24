@@ -453,3 +453,15 @@ grant execute on function public.my_invite_codes() to authenticated;
 alter table public.items drop constraint if exists items_type_check;
 alter table public.items add constraint items_type_check
   check (type in ('folder','character','world','story','plot','memo','idea','vault','settings','stat'));
+
+-- 이메일 확인 전 계정의 이메일 변경 횟수 제한용 (Edge Function change-email 만 사용)
+create table if not exists public.email_change_log (
+  id      bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  at      timestamptz not null default now()
+);
+create index if not exists email_change_log_user_idx on public.email_change_log (user_id, at desc);
+alter table public.email_change_log enable row level security;
+alter table public.email_change_log force row level security;
+revoke all on public.email_change_log from public, anon, authenticated;
+revoke all on sequence public.email_change_log_id_seq from public, anon, authenticated;

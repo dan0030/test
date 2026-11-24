@@ -5,6 +5,7 @@ import { cacheEnabled, setCacheEnabled } from '../cache.js';
 import { icon, esc, modal, toast, confirmBox, download, pickFile } from '../ui.js';
 import { pageHead } from '../common.js';
 import { CONFIG } from '../config.js';
+import { isEmailAccount, isUnconfirmed, refreshUser, bindEmailActions } from '../email.js';
 
 // 마지막으로 백업 파일을 받은 날 (이 브라우저 기준)
 const BK_KEY = 'onote-last-backup';
@@ -29,13 +30,16 @@ export function renderSettings(root, opts) {
         ${cloud ? `<dl class="acct">
             <dt>${icon('user-round', 14)} 이름</dt><dd>${esc(store.profile?.display_name || '미설정')}</dd>
             <dt>${icon('at-sign', 14)} 아이디</dt><dd>${store.profile ? `@${esc(store.profile.username)}` : '미설정'}</dd>
-            <dt>${icon('mail', 14)} 이메일</dt><dd>${esc(store.user.email || '')} <span class="muted small">(나만 보여요)</span></dd>
+            <dt>${icon('mail', 14)} 이메일</dt><dd>${esc(store.user.email || '')} ${isEmailAccount() ? (isUnconfirmed() ? `<span class="chip warn">${icon('mail-warning', 12)} 확인 전</span>` : `<span class="chip ok">${icon('circle-check', 12)} 확인됨</span>`) : ''} <span class="muted small">(나만 보여요)</span></dd>
           </dl>
+          ${isUnconfirmed() ? `<p class="warn-box">${icon('mail-warning', 15)} 이메일 확인이 아직 안 됐어요. 확인 메일의 링크를 누르면 끝나요. 주소를 잘못 적었다면 이메일을 바꿔주세요.</p>` : ''}
           <p><span class="chip ok">${icon('cloud', 12)} 클라우드 동기화</span></p>
           <p class="muted small">어떤 브라우저·기기에서든 같은 계정으로 로그인하면 기록이 그대로 이어져요.</p>
           <label class="check"><input type="checkbox" id="remember-set" ${rememberLogin?.() !== false ? 'checked' : ''}><span>이 브라우저에서 로그인 상태 유지 <span class="muted small">(끄면 브라우저를 닫을 때 로그아웃되고, 이 기기에 기록 사본도 남기지 않아요)</span></span></label>
           <div class="btn-row">
+            ${isUnconfirmed() ? `<button class="btn primary" data-email-send>${icon('send', 16)}<span>확인 메일 보내기</span></button>` : ''}
             <button class="btn ghost" id="prof">${icon('user-pen', 16)} 아이디·이름 변경</button>
+            ${isEmailAccount() ? `<button class="btn ghost" data-email-change>${icon('mail', 16)}<span>이메일 변경</span></button>` : ''}
             ${isOAuth ? '' : `<button class="btn ghost" id="pw">${icon('key-round', 16)} 비밀번호 변경</button>`}
             <button class="btn ghost" id="out">${icon('log-out', 16)} 로그아웃</button>
           </div>`
@@ -100,6 +104,9 @@ export function renderSettings(root, opts) {
   const $ = (s) => root.querySelector(s);
   $('#out') && ($('#out').onclick = signOut);
   $('#prof') && ($('#prof').onclick = () => editProfile?.());
+  bindEmailActions(root, () => renderSettings(root, opts));
+  // 다른 곳에서 확인 링크를 눌렀다면 상태를 새로 받아 다시 그림
+  if (isUnconfirmed()) refreshUser().then(() => { if (!isUnconfirmed() && root.isConnected && location.hash.startsWith('#/settings')) renderSettings(root, opts); });
   $('#remember-set') && ($('#remember-set').onchange = (e) => {
     setRememberLogin?.(e.target.checked);
     toast(e.target.checked ? '브라우저를 껐다 켜도 로그인이 유지돼요' : '브라우저를 닫으면 로그아웃돼요 (이 기기의 사본도 지웠어요)', 'ok');

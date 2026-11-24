@@ -221,6 +221,11 @@ function authScreen(mode = 'login', invite = '') {
         if (!free) throw new Error('이미 쓰이고 있거나 쓸 수 없는 아이디예요.');
         const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName, invite: inviteCode } } });
         if (error) throw new Error(signupErrorText(error));
+        // 이메일 확인 전에도 로그인할 수 있게 설정된 경우 바로 들어감 (확인은 들어가서 안내)
+        if (!data.session) {
+          const { data: li } = await sb.auth.signInWithPassword({ email, password: pw }).catch(() => ({ data: null }));
+          if (li?.session) { location.reload(); return; }
+        }
         if (!data.session) {
           app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p>
             ${mailHelpHTML()}
