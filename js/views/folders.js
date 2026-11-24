@@ -7,7 +7,7 @@ import { openExport } from '../export.js';
 import { newWiki } from './wiki.js';
 import { newStory } from './story.js';
 import { newPlot } from './plot.js';
-import { quickMemo } from './memo.js';
+import { quickMemo, memoBoard } from './memo.js';
 
 const PAIRTLE_PRESETS = {
   '기본 페어틀': ['상대를 부르는 호칭', '첫인상', '지금의 인상', '상대의 좋은 점', '상대의 싫은(?) 점', '상대에게 숨기고 있는 것', '질투 포인트', '스킨십 반응', '이미지 컬러', '상징하는 꽃·동물', '테마곡', '관계를 한 줄로'],
@@ -62,6 +62,8 @@ export function renderFolder(root, id, q) {
 
   const body = $('#f-body', root);
   if (tab === 'pair') return renderPairtle(body, f, () => renderFolder(root, id, q));
+  // 메모는 메모 화면과 똑같은 포스트잇 보드로
+  if (tab === 'memo') { memoBoard(body, { folderId: id }); return; }
   const items = inFolder(id, tab);
   const t = TYPES[tab];
   const addBtn = `<button class="btn primary" id="f-add">${icon('plus', 18)} 이 폴더에 ${t.label} 추가</button>`;

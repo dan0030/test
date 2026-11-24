@@ -71,6 +71,8 @@ export function renderSearch(root, q) {
       <select name="t"><option value="">전체</option>${Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${type === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
       <button class="btn primary">검색</button></form>
     ${s ? `<p class="muted">${res.length}개의 결과</p><ul class="search-res">${res.map(({ it, snip }) => `<li><a href="${itemHref(it)}">${icon(TYPES[it.type]?.icon || 'file', 18)}<div><b>${esc(it.data.title || summary(it).slice(0, 30) || '제목 없음')}</b><span>…${mark(snip)}…</span></div></a></li>`).join('')}</ul>` : ''}`;
+  // 검색 화면에 들어오면 바로 입력할 수 있게 (모바일의 검색 아이콘에서 들어올 때)
+  if (!s) setTimeout(() => root.querySelector('#sf input')?.focus(), 50);
   root.querySelector('#sf').onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
