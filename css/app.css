@@ -882,3 +882,16 @@ a.stat { color: var(--accent-ink); }
 .tip-box > svg { color: var(--accent-ink); flex-shrink: 0; margin-top: 3px; }
 .tip-box > div { min-width: 0; }
 .tip-box b { color: var(--accent-ink); }
+
+/* 꾸밈 글 입력칸 (각주 등) */
+.rich { display: grid; gap: 6px; }
+.rich-bar { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; background: var(--surface-2); border-radius: 10px; padding: 4px; }
+.rich-bar .tb { width: 32px; height: 32px; }
+.rich-bar .tb-select { height: 32px; }
+.rich-link { display: flex; gap: 6px; }
+.rich-link[hidden] { display: none; }
+.rich-link .input { flex: 1; min-width: 0; }
+.rich-area { min-height: 6em; height: auto; line-height: 1.7; overflow-wrap: anywhere; white-space: normal; cursor: text; }
+.rich-area:focus { outline: none; border-color: var(--accent); }
+.rich-area.is-empty::before { content: attr(data-ph); color: var(--muted, #9a9aa8); pointer-events: none; }
+.rich-area a { color: var(--accent-ink); text-decoration: underline; }

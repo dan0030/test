@@ -6,6 +6,9 @@ import { saveImage, inlineImages } from '../images.js';
 import { itemCard, folderBadge, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openColorPopover } from '../colors.js';
 import { formDialog } from '../form.js';
+
+// 각주 내용(꾸밈 HTML)의 글자만 — 비었는지 확인용
+const noteText = (html) => (new DOMParser().parseFromString(`<body>${html || ''}</body>`, 'text/html').body.textContent || '').trim();
 import { copyRich, copyText, exportImages } from '../export.js';
 import { startCount, trackText } from '../stats.js';
 
@@ -224,8 +227,21 @@ export function renderView(root, id) {
   host.addEventListener('click', (e) => {
     const a = e.target.closest('[data-newwiki]');
     if (a) { e.preventDefault(); newWiki(it.type === 'world' ? 'world' : 'character', (d.folders || [])[0], a.dataset.newwiki); return; }
-    const toc = e.target.closest('.nw-toc a[href^="#"]');
-    if (toc) { e.preventDefault(); const target = host.querySelector(toc.getAttribute('href')); if (target) { target.open = true; target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
+    // 문서 안 링크(목차·각주 번호·각주 목록의 되돌아가기)는 주소를 바꾸지 않고 그 자리로 이동
+    // (주소의 # 뒤를 바꾸면 사이트가 다른 화면으로 인식해 '페이지를 찾을 수 없어요'가 뜸)
+    const inner = e.target.closest('a[href^="#"]');
+    if (inner && !inner.closest('[data-newwiki]') && !/^#\//.test(inner.getAttribute('href'))) {
+      e.preventDefault();
+      // 각주 번호는 눌렀을 때 뜨는 말풍선으로 내용을 보여줌 (목록으로 건너뛰지 않음)
+      if (inner.classList.contains('nw-ref')) { inner.closest('.nw-fnwrap')?.focus(); return; }
+      const target = host.querySelector(`[id="${CSS.escape(inner.getAttribute('href').slice(1))}"]`);
+      if (target) {
+        target.closest('details')?.setAttribute('open', '');
+        if (target.tagName === 'DETAILS') target.open = true;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.focus?.({ preventScroll: true });
+      }
+    }
   });
   bindBookmark(root, it);
   bindComments(root, it, () => renderView(root, id));
@@ -480,10 +496,10 @@ export function renderEdit(root, id) {
       case 'notice': return noticeDialog();
       case 'fn': {
         const snap = E.snapshot();
-        const v = await formDialog({ title: '각주 넣기', fields: [{ key: 'note', label: '각주 내용', type: 'textarea', rows: 3 }, { key: 'name', label: '각주 이름 (선택)', placeholder: '같은 이름끼리 하나로 묶여요', hint: '넣은 뒤 각주 번호를 누르면 다시 고칠 수 있어요.' }] });
+        const v = await formDialog({ title: '각주 넣기', fields: [{ key: 'note', label: '각주 내용', type: 'rich', rows: 3, placeholder: '각주 내용을 쓰고, 글자를 선택해 꾸며보세요' }, { key: 'name', label: '각주 이름 (선택)', placeholder: '같은 이름끼리 하나로 묶여요', hint: '넣은 뒤 각주 번호를 누르면 다시 고칠 수 있어요.' }] });
         E.restore(snap);
-        if (!v || !v.note.trim()) return;
-        E.insertHtml(`<sup data-nw="fn" data-note="${esc(v.note).replace(/\n/g, '<br>')}"${v.name ? ` data-name="${esc(v.name)}"` : ''}>[*]</sup>&#8203;`); syncActive(); return;
+        if (!v || !noteText(v.note)) return;
+        E.insertHtml(`<sup data-nw="fn" data-note="${esc(v.note)}"${v.name ? ` data-name="${esc(v.name)}"` : ''}>[*]</sup>&#8203;`); syncActive(); return;
       }
       case 'spoiler': {
         if (!E.selectedText()) return toast('가릴 글자를 먼저 드래그해서 선택하세요');
@@ -567,12 +583,12 @@ export function renderEdit(root, id) {
 
   async function editFootnote(el) {
     const snap = E.snapshot();
-    const v = await formDialog({ title: '각주 편집', okText: '적용', danger: '각주 삭제', fields: [{ key: 'note', label: '각주 내용', type: 'textarea', rows: 3, value: (el.getAttribute('data-note') || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') }, { key: 'name', label: '각주 이름', value: el.getAttribute('data-name') || '' }] });
+    const v = await formDialog({ title: '각주 편집', okText: '적용', danger: '각주 삭제', fields: [{ key: 'note', label: '각주 내용', type: 'rich', rows: 3, value: el.getAttribute('data-note') || '' }, { key: 'name', label: '각주 이름', value: el.getAttribute('data-name') || '' }] });
     E.restore(snap);
     if (!v) return;
     const host = el.closest('[contenteditable=true]');
-    if (v.__delete) el.remove();
-    else { el.setAttribute('data-note', esc(v.note).replace(/\n/g, '<br>')); if (v.name) el.setAttribute('data-name', v.name); else el.removeAttribute('data-name'); }
+    if (v.__delete || !noteText(v.note)) el.remove();
+    else { el.setAttribute('data-note', v.note); if (v.name) el.setAttribute('data-name', v.name); else el.removeAttribute('data-name'); }
     if (host) pull(host);
     renumber();
   }
