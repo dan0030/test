@@ -13,6 +13,8 @@ import * as Memo from './views/memo.js';
 import * as Tools from './views/tools.js';
 import * as Settings from './views/settings.js';
 import * as Privacy from './views/privacy.js';
+import * as Community from './views/community.js';
+import * as Admin from './views/admin.js';
 
 const app = document.getElementById('app');
 let sb = null;
@@ -64,7 +66,10 @@ async function boot() {
   // OAuth/메일 인증 후 주소창의 ?code= 정리
   if (location.search.includes('code=')) history.replaceState(null, '', location.pathname + (location.hash || '#/'));
   if (sessionStorage.getItem('onote-trial') === '1') { await initLocal(); return mount(); }
-  if (!session) return authScreen();
+  if (!session) {
+    const m = location.hash.match(/^#\/signup(?:\?(.*))?$/);
+    return m ? authScreen('signup', new URLSearchParams(m[1] || '').get('invite') || '') : authScreen();
+  }
   try {
     loading('기록을 불러오는 중…');
     await initCloud(sb, session.user);
@@ -119,7 +124,7 @@ export async function profileDialog({ title = '아이디 · 이름 변경', intr
 function loading(msg) { app.innerHTML = `<div class="center-box"><div class="spinner"></div><p class="muted">${esc(msg)}</p></div>`; }
 
 // ---------- 로그인 / 회원가입 ----------
-function authScreen(mode = 'login') {
+function authScreen(mode = 'login', invite = '') {
   const isUp = mode === 'signup';
   app.innerHTML = `
     <div class="auth">
@@ -129,7 +134,10 @@ function authScreen(mode = 'login') {
         <div class="seg full"><button class="${!isUp ? 'on' : ''}" data-m="login">로그인</button><button class="${isUp ? 'on' : ''}" data-m="signup">회원가입</button></div>
         ${CONFIG.ENABLE_GITHUB_LOGIN ? `<button class="btn gh full" id="gh">${icon('github', 18)} GitHub 계정으로 ${isUp ? '가입' : '로그인'}</button><div class="or"><span>또는 이메일</span></div>` : ''}
         <form id="af" autocomplete="on">
-          ${isUp ? `<div class="row2">
+          ${isUp ? `<label class="lbl" for="ic">초대 코드 <span class="muted small" id="ic-req"></span></label>
+          <input class="input code-in" id="ic" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" placeholder="받은 초대 코드를 입력하세요" value="${esc(invite)}">
+          <p class="muted small" id="ic-msg">O-note는 초대 코드를 받은 분만 가입할 수 있어요.</p>
+          <div class="row2">
             <div><label class="lbl" for="un">아이디</label><input class="input" id="un" required autocomplete="username" placeholder="영문 소문자·숫자·_ 3~20자" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}"></div>
             <div><label class="lbl" for="dn">이름 (닉네임)</label><input class="input" id="dn" required autocomplete="nickname" placeholder="사이트에서 보일 이름" maxlength="30"></div>
           </div>
@@ -152,7 +160,15 @@ function authScreen(mode = 'login') {
         <p class="center small"><a href="#" id="pv2">개인정보 처리방침</a></p>
       </div>
     </div>`;
-  app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => authScreen(b.dataset.m)));
+  app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => authScreen(b.dataset.m, $('#ic')?.value || invite)));
+  let inviteRequired = true;
+  if (isUp) {
+    sb.rpc('signup_config').then(({ data }) => {
+      inviteRequired = data?.invite_required !== false;
+      const r = $('#ic-req'); if (r) r.textContent = inviteRequired ? '(필수)' : '(선택)';
+      if (!inviteRequired && $('#ic-msg')) $('#ic-msg').textContent = '지금은 초대 코드 없이도 가입할 수 있어요.';
+    }).catch(() => {});
+  }
   $('#gh')?.addEventListener('click', async () => {
     const { error } = await sb.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: location.origin + location.pathname, scopes: 'read:user user:email' } });
     if (error) toast(error.message, 'error');
@@ -195,9 +211,15 @@ function authScreen(mode = 'login') {
         const displayName = $('#dn').value.trim();
         if (!/^[a-z0-9_]{3,20}$/.test(username)) throw new Error('아이디는 영문 소문자, 숫자, 밑줄(_)로 3~20자예요.');
         if (!displayName) throw new Error('이름(닉네임)을 입력해주세요.');
+        const inviteCode = $('#ic').value.trim().toUpperCase();
+        if (inviteRequired || inviteCode) {
+          if (!inviteCode) throw new Error('초대 코드를 입력해주세요.');
+          const { data: valid } = await sb.rpc('invite_check', { p_code: inviteCode });
+          if (!valid) throw new Error('초대 코드가 올바르지 않거나, 사용 횟수를 다 썼거나, 기한이 지났어요.');
+        }
         const { data: free } = await sb.rpc('username_available', { p_username: username });
         if (!free) throw new Error('이미 쓰이고 있거나 쓸 수 없는 아이디예요.');
-        const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName } } });
+        const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname, data: { username, display_name: displayName, invite: inviteCode } } });
         if (error) throw new Error(signupErrorText(error));
         if (!data.session) {
           app.querySelector('.auth-card').innerHTML = `<div class="center">${icon('mail-check', 44)}<h2>메일을 확인해주세요</h2><p class="muted">${esc(email)}로 인증 링크를 보냈어요.<br>링크를 누르면 가입이 완료돼요.</p>
@@ -261,6 +283,7 @@ async function notConfirmed(email) {
 // 가입 오류를 이해하기 쉬운 말로 (가입이 실패하면 계정은 만들어지지 않으니 다시 시도하면 됨)
 function signupErrorText(e) {
   const m = `${e.message || ''} ${e.code || ''}`;
+  if (/Database error saving new user|invite_invalid/i.test(m)) return '가입하지 못했어요. 초대 코드가 방금 다 쓰였거나 기한이 지났을 수 있어요. 코드를 확인해 주세요.';
   if (/over_email_send_rate_limit|rate limit|too many/i.test(m) || e.status === 429) return '지금 가입 요청이 많아 인증 메일을 보낼 수 없어요. 잠시 후 다시 시도해 주세요.';
   if (/sending|confirmation email|smtp|unexpected_failure/i.test(m) || e.status === 500) return '지금 사이트의 메일 발송에 문제가 있어 인증 메일을 보낼 수 없어요. 가입 정보는 저장되지 않았으니 잠시 후 다시 시도해 주세요.';
   if (/already registered|already exists/i.test(m)) return '이미 가입된 이메일이에요. 로그인하거나 비밀번호 찾기를 이용해 주세요.';
@@ -350,6 +373,11 @@ function mount() {
       <aside class="side" id="side">
         <a class="logo" href="#/">${logoSvg()}<span>O-note</span></a>
         <nav class="nav">${NAV.map(([h, ic, n, d]) => `<a href="${h}" data-nav="${h}"><span class="n-ic">${icon(ic, 20)}</span><span class="n-t"><b>${n}</b><small>${d}</small></span></a>`).join('')}</nav>
+        ${store.mode === 'cloud' ? `<nav class="nav nav-sub">
+          <a href="#/mail" data-nav="#/mail"><span class="n-ic">${icon('mail', 20)}</span><span class="n-t"><b>우편함</b><small>운영자 소식 · 선물</small></span><span class="nbadge" data-mail-badge hidden></span></a>
+          <a href="#/suggest" data-nav="#/suggest"><span class="n-ic">${icon('message-square', 20)}</span><span class="n-t"><b>건의함</b><small>의견 · 오류 제보</small></span></a>
+          <a href="#/admin" data-nav="#/admin" id="nav-admin" hidden><span class="n-ic">${icon('shield-check', 20)}</span><span class="n-t"><b>운영자</b><small>코드 · 우편 · 건의 관리</small></span></a>
+        </nav>` : ''}
         <div class="side-foot">
           <a href="#/privacy" data-nav="#/privacy"><span class="n-ic">${icon('file-lock', 20)}</span><span class="n-t"><b>개인정보 처리방침</b></span></a>
           <a href="#/settings" data-nav="#/settings"><span class="n-ic">${icon('settings', 20)}</span><span class="n-t"><b>설정</b><small>${esc(store.mode === 'cloud' ? (store.profile ? `${store.profile.display_name} · @${store.profile.username}` : '아이디 미설정') : '체험 모드')}</small></span></a>
@@ -368,7 +396,7 @@ function mount() {
         </header>
         <main id="view" class="view" tabindex="-1"></main>
       </div>
-      <nav class="tabbar">${TABBAR.map(([h, ic, n]) => `<a href="${h === 'more' ? '#' : h}" ${h === 'more' ? 'id="more"' : `data-nav="${h}"`}>${icon(ic, 22)}<span>${n}</span></a>`).join('')}</nav>
+      <nav class="tabbar">${TABBAR.map(([h, ic, n]) => `<a href="${h === 'more' ? '#' : h}" ${h === 'more' ? 'id="more"' : `data-nav="${h}"`}>${icon(ic, 22)}<span>${n}</span>${h === 'more' ? '<i class="tdot" data-mail-badge hidden></i>' : ''}</a>`).join('')}</nav>
     </div>`;
 
   const side = $('#side'); const back = $('#side-back');
@@ -412,10 +440,12 @@ function mount() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); else pull(); });
   window.addEventListener('online', () => { flush(); pull({ force: true }); });
   // 무료 전송량을 아끼기 위해 화면이 보일 때만 5분마다 확인 (바뀐 행만 받음)
-  setInterval(() => { if (document.visibilityState === 'visible') pull(); }, 300000);
+  setInterval(() => { if (document.visibilityState === 'visible') { pull(); Community.refreshMailBadge(); } }, 300000);
   route();
   startImageHydrator();
   if (store.mode === 'cloud') {
+    Community.refreshMailBadge();
+    Admin.adminStatus().then((st) => { const a = $('#nav-admin'); if (a && st.admin) a.hidden = false; }).catch(() => {});
     // 무료 공간 아끼기: 문서 속 큰 사진은 저장소로 옮기고, 안 쓰는 사진은 하루 한 번 정리
     setTimeout(() => { migrateInlineImages().then(() => cleanupImages()).catch(() => {}); }, 4000);
   }
@@ -486,6 +516,10 @@ function route() {
       case 'search': r = Home.renderSearch(view, q); break;
       case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
       case 'privacy': r = Privacy.renderPrivacy(view); break;
+      case 'mail': r = Community.renderMail(view); break;
+      case 'suggest': r = Community.renderSuggest(view); break;
+      case 'admin': r = Admin.renderAdmin(view, q); break;
+      case 'signup': location.replace('#/'); return;
       default: view.innerHTML = '<div class="center-box"><h2>페이지를 찾을 수 없어요</h2><a class="btn primary" href="#/">홈으로</a></div>';
     }
   } catch (e) {

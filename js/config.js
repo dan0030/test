@@ -8,5 +8,5 @@ export const CONFIG = {
   ENABLE_GITHUB_LOGIN: false,
   // 개인정보 처리방침에 표시되는 운영자 문의처
   CONTACT: 'https://github.com/dan0030',
-  POLICY_DATE: '2026년 11월 23일',
+  POLICY_DATE: '2026년 11월 24일',
 };
