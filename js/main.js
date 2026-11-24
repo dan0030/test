@@ -374,7 +374,7 @@ function mount() {
         <a class="logo" href="#/">${logoSvg()}<span>O-note</span></a>
         <nav class="nav">${NAV.map(([h, ic, n, d]) => `<a href="${h}" data-nav="${h}"><span class="n-ic">${icon(ic, 20)}</span><span class="n-t"><b>${n}</b><small>${d}</small></span></a>`).join('')}</nav>
         ${store.mode === 'cloud' ? `<nav class="nav nav-sub">
-          <a href="#/mail" data-nav="#/mail"><span class="n-ic">${icon('mail', 20)}</span><span class="n-t"><b>우편함</b><small>운영자 소식 · 선물</small></span><span class="nbadge" data-mail-badge hidden></span></a>
+          <a href="#/mail" data-nav="#/mail"><span class="n-ic">${icon('mail', 20)}</span><span class="n-t"><b>우편함</b><small>소식 · 선물 · 내 초대 코드</small></span><span class="nbadge" data-mail-badge hidden></span></a>
           <a href="#/suggest" data-nav="#/suggest"><span class="n-ic">${icon('message-square', 20)}</span><span class="n-t"><b>건의함</b><small>의견 · 오류 제보</small></span></a>
           <a href="#/admin" data-nav="#/admin" id="nav-admin" hidden><span class="n-ic">${icon('shield-check', 20)}</span><span class="n-t"><b>운영자</b><small>코드 · 우편 · 건의 관리</small></span></a>
         </nav>` : ''}
@@ -516,7 +516,7 @@ function route() {
       case 'search': r = Home.renderSearch(view, q); break;
       case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
       case 'privacy': r = Privacy.renderPrivacy(view); break;
-      case 'mail': r = Community.renderMail(view); break;
+      case 'mail': r = Community.renderMail(view, q); break;
       case 'suggest': r = Community.renderSuggest(view); break;
       case 'admin': r = Admin.renderAdmin(view, q); break;
       case 'signup': location.replace('#/'); return;

@@ -30,10 +30,8 @@ export async function refreshMailBadge() {
 }
 
 function codeRow(c) {
-  const left = Math.max(0, c.max - c.used);
-  const expired = c.exp && new Date(c.exp) < new Date();
-  const state = !c.active ? '사용 중지됨' : expired ? '기간 지남' : left ? `${left}회 남음` : '모두 사용됨';
-  const ok = c.active && !expired && left > 0;
+  const [k, state] = codeState(c);
+  const ok = k === 'ok';
   return `<div class="code-row ${ok ? '' : 'off'}">
     <code>${esc(c.code)}</code><span class="chip">${state}</span>${c.exp ? `<span class="muted small">~${dateStr(c.exp)}</span>` : ''}
     <span class="grow"></span>
@@ -42,9 +40,58 @@ function codeRow(c) {
 }
 
 // ---------- 우편함 ----------
-export async function renderMail(root) {
+const codeState = (c) => {
+  const expired = c.exp && new Date(c.exp) < new Date();
+  const left = Math.max(0, c.max - c.used);
+  if (!c.active) return ['off', '사용 중지됨'];
+  if (expired) return ['off', '기간 지남'];
+  if (!left) return ['done', '모두 사용됨'];
+  return ['ok', c.used ? `${left}회 남음` : '아직 안 씀'];
+};
+
+// 내 초대 코드: 우편 선물로 받은 코드와 사용 현황 (누가 썼는지는 저장하지 않아 횟수만 보여줌)
+async function renderMyCodes(box) {
+  const { data, error } = await sb().rpc('my_invite_codes');
+  if (error) { box.innerHTML = emptyState('cloud-off', '초대 코드를 불러오지 못했어요', '잠시 후 다시 시도해 주세요.'); return; }
+  const codes = data || [];
+  if (!codes.length) { box.innerHTML = emptyState('key-round', '가진 초대 코드가 없어요', '이벤트 보상 등으로 우편함에 초대 코드 선물이 오면 여기에 모여요.'); return; }
+  const usable = codes.filter((c) => codeState(c)[0] === 'ok');
+  const joined = codes.reduce((a, c) => a + c.used, 0);
+  const card = (c) => {
+    const [k, label] = codeState(c);
+    return `<article class="card mycode ${k === 'ok' ? '' : 'off'}">
+      <div class="mycode-top"><code>${esc(c.code)}</code><span class="chip st-${k === 'ok' ? 'ok' : 'done'}">${label}</span><span class="grow"></span>
+        ${k === 'ok' ? `<button class="btn ghost sm" data-copy="${esc(c.code)}">${icon('copy', 14)}<span>코드</span></button><button class="btn ghost sm" data-link="${esc(c.code)}">${icon('link', 14)}<span>초대 링크</span></button>` : ''}</div>
+      <div class="mycode-meta"><span>${icon('users', 13)} 가입 ${c.used} / ${c.max}명</span><span>${icon('clock', 13)} ${c.exp ? `${dateStr(c.exp)}까지` : '기한 없음'}</span>${c.mail_title ? `<span>${icon('gift', 13)} ${esc(c.mail_title)}</span>` : ''}<span class="muted">받은 날 ${dateStr(c.created_at)}</span></div>
+      <div class="mini-bar" aria-hidden="true"><i style="width:${Math.round((c.used / c.max) * 100)}%"></i></div>
+    </article>`;
+  };
+  const rest = codes.filter((c) => codeState(c)[0] !== 'ok');
+  box.innerHTML = `<div class="adm-stats">
+      <div class="stat">${icon('key-round', 18)}<b>${codes.length}</b><span>가진 코드</span></div>
+      <div class="stat">${icon('circle-check', 18)}<b>${usable.length}</b><span>지금 쓸 수 있는 코드</span></div>
+      <div class="stat">${icon('user-plus', 18)}<b>${joined}</b><span>내 코드로 가입한 사람</span></div>
+    </div>
+    <p class="muted small">${icon('shield-check', 13)} 코드가 몇 번 쓰였는지만 보여요. 누가 가입했는지는 개인정보 보호를 위해 기록하지 않아요.</p>
+    ${usable.length ? `<h2 class="sec-h">${icon('circle-check', 18)} <span>쓸 수 있는 코드</span></h2><div class="sug-list">${usable.map(card).join('')}</div>` : ''}
+    ${rest.length ? `<h2 class="sec-h">${icon('archive', 18)} <span>다 썼거나 기간이 지난 코드</span></h2><div class="sug-list">${rest.map(card).join('')}</div>` : ''}`;
+}
+
+export async function renderMail(root, q = new URLSearchParams()) {
   if (store.mode !== 'cloud') return needCloud(root, 'mail', '우편함');
-  root.innerHTML = `${pageHead('mail', '우편함', '운영자가 보내는 소식과 이벤트 선물(초대 코드)을 받아요.')}<div id="mail-list"><div class="center-box"><div class="spinner"></div></div></div>`;
+  const tab = q.get('tab') === 'codes' ? 'codes' : 'inbox';
+  root.innerHTML = `${pageHead('mail', '우편함', '운영자가 보내는 소식과 이벤트 선물(초대 코드)을 받아요.')}
+    <div class="tabs"><a class="tab ${tab === 'inbox' ? 'on' : ''}" href="#/mail">${icon('mail', 16)} 받은 우편</a><a class="tab ${tab === 'codes' ? 'on' : ''}" href="#/mail?tab=codes">${icon('key-round', 16)} 내 초대 코드</a></div>
+    <div id="mail-list"><div class="center-box"><div class="spinner"></div></div></div>`;
+  if (tab === 'codes') {
+    const cbox = root.querySelector('#mail-list');
+    cbox.addEventListener('click', (e) => {
+      const cp = e.target.closest('[data-copy]'); if (cp) return copy(cp.dataset.copy, '초대 코드를 복사했어요');
+      const ln = e.target.closest('[data-link]'); if (ln) copy(inviteLink(ln.dataset.link), '초대 링크를 복사했어요');
+    });
+    refreshMailBadge();
+    return renderMyCodes(cbox);
+  }
   const box = root.querySelector('#mail-list');
   let open = null;
   const load = async () => {
@@ -64,6 +111,7 @@ export async function renderMail(root) {
           ${m.gift_invites ? `<div class="gift-box">
             <h4>${icon('gift', 16)} 선물: 초대 코드 ${m.gift_invites}개 <span class="muted small">(코드 하나당 ${m.gift_uses}명 가입${m.gift_days ? ` · 받은 날부터 ${m.gift_days}일` : ''})</span></h4>
             ${m.claimed_at ? (m.codes || []).map(codeRow).join('') : `<button class="btn primary" data-claim="${m.id}">${icon('gift', 16)}<span>선물 받기</span></button>`}
+            ${m.claimed_at ? `<a class="link small" href="#/mail?tab=codes">${icon('key-round', 13)} 내 초대 코드 모두 보기 · 사용 현황</a>` : ''}
             <p class="muted small">초대 코드를 친구에게 전해주면 O-note에 가입할 수 있어요. 코드는 다른 사람에게 공개된 곳에 올리지 마세요.</p>
           </div>` : ''}
           <div class="btn-row"><span class="muted small">${dateStr(m.created_at)}${m.expires_at ? ` · ${dateStr(m.expires_at)}까지 보관` : ''}</span><span class="grow"></span>

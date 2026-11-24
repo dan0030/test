@@ -868,3 +868,11 @@ a.stat { color: var(--accent-ink); }
 .mfa ol { margin: 0; padding-left: 20px; line-height: 1.8; }
 .mfa-qr { width: 200px; height: 200px; background: #fff; border-radius: 12px; padding: 8px; justify-self: start; }
 .otp { max-width: 160px; font-size: 20px; letter-spacing: .3em; text-align: center; font-variant-numeric: tabular-nums; }
+.mycode { padding: 12px 14px; display: grid; gap: 8px; }
+.mycode.off { opacity: .6; }
+.mycode-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mycode-top code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; font-size: 15px; letter-spacing: .06em; overflow-wrap: anywhere; }
+.mycode-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--sub); }
+.mycode-meta span { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.mini-bar { height: 5px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.mini-bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }

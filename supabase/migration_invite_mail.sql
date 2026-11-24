@@ -435,3 +435,16 @@ end $$;
 -- 해제:
 --   delete from public.admins where user_id = (select id from public.profiles where username = '운영자_아이디');
 -- =====================================================================
+
+-- 내가 가진 초대 코드 (우편 선물로 받은 코드) 와 사용 현황 — 누가 썼는지는 저장하지 않으므로 횟수만
+create or replace function public.my_invite_codes()
+returns json language sql stable security definer set search_path = '' as $$
+  select coalesce(json_agg(json_build_object(
+           'code', c.code, 'used', c.used, 'max', c.max_uses, 'exp', c.expires_at, 'active', c.active,
+           'created_at', c.created_at, 'mail_title', m.title) order by c.created_at desc), '[]'::json)
+    from public.invite_codes c
+    left join public.mails m on m.id = c.mail_id
+   where auth.uid() is not null and c.owner = auth.uid();
+$$;
+revoke all on function public.my_invite_codes() from public, anon;
+grant execute on function public.my_invite_codes() to authenticated;
