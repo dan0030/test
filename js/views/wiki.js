@@ -136,15 +136,23 @@ export function wikiText(it) {
 
 // ---------------- mnmwiki 문서 주고받기 ----------------
 // mnmwiki(위키 문서 메이커)의 '파일로 저장'(.mnmwiki.json) 또는 '문서 코드'(MNMWIKI1:…)를 그대로 읽음
-const MNM_PREFIX = 'MNMWIKI1:';
+// 복사·붙여넣기 중 생기는 변형도 받아줌:
+//  - 머리말 대소문자 (mnmwiki1: / Mnmwiki1: …), 머리말 뒤 공백
+//  - 앞뒤 따옴표·괄호, 줄바꿈·공백, 눈에 안 보이는 문자(제로폭 공백, BOM)
+//  - URL용 base64(-, _), 끝의 = 빠짐
+// (머리말 뒤 코드 본문은 대소문자를 구분하므로 그대로 둠)
 function decodeMnmwiki(text) {
-  let t = String(text || '').trim();
+  let t = String(text || '').replace(/[​-‍⁠﻿]/g, '').trim();
+  t = t.replace(/^[`'"“”‘’「」『』<(\[]+|[`'"“”‘’「」『』>)\]]+$/g, '').trim();
   if (!t) throw new Error('empty');
   let data;
   if (t[0] === '{') data = JSON.parse(t);
   else {
-    if (t.startsWith(MNM_PREFIX)) t = t.slice(MNM_PREFIX.length);
-    const bin = atob(t.replace(/\s+/g, ''));
+    t = t.replace(/^mnmwiki\d*\s*[:：]\s*/i, '').replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    if (!/^[A-Za-z0-9+/]+=*$/.test(t)) throw new Error('invalid');
+    t = t.replace(/=+$/, '');
+    t += '='.repeat((4 - (t.length % 4)) % 4);
+    const bin = atob(t);
     data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
   }
   const m = data && data.model;
@@ -172,7 +180,14 @@ async function askMnmwiki({ title = 'mnmwiki 문서 불러오기', okText = '불
         const text = fileText ?? w.querySelector('#mw-code').value;
         if (!String(text || '').trim()) { toast('파일을 고르거나 코드를 붙여넣어 주세요', 'error'); return false; }
         if (text.length > 20 * 1024 * 1024) { toast('문서가 너무 커요 (20MB 이하)', 'error'); return false; }
-        try { return decodeMnmwiki(text); } catch { toast('mnmwiki 문서 파일이나 코드가 아니에요. 다시 확인해 주세요.', 'error'); return false; }
+        try { return decodeMnmwiki(text); } catch {
+          // 코드 전체가 소문자로 바뀌면(자동 변환 키보드·메신저 등) 내용이 깨져 되살릴 수 없음
+          const allLower = text.length > 60 && !/[A-Z]/.test(text.replace(/^\s*mnmwiki\d*\s*[:：]/i, '')) && /^\s*["'“]?\s*mnmwiki/i.test(text);
+          toast(allLower
+            ? '코드 전체가 소문자로 바뀌어서 읽을 수 없어요. mnmwiki에서 코드를 다시 복사하거나, \'지금 문서 파일로 저장\'으로 받은 파일을 골라주세요.'
+            : 'mnmwiki 문서 파일이나 코드가 아니에요. 다시 확인해 주세요.', 'error');
+          return false;
+        }
       },
     }],
     onOpen: (w) => {
