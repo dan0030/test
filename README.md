@@ -59,8 +59,10 @@
 
 ### 2) 로그인 설정 (Supabase → Authentication)
 1. **URL Configuration**
-   - Site URL: `https://<깃허브아이디>.github.io/<저장소이름>/`
-   - Redirect URLs에도 같은 주소를 추가
+   - Site URL: 사이트 주소 (현재 `https://www.o-note.net/`, 기본 주소는 `https://<깃허브아이디>.github.io/<저장소이름>/`)
+   - Redirect URLs에 사이트 주소를 모두 추가 (커스텀 도메인과 github.io 주소 둘 다)
+
+> **커스텀 도메인 (www.o-note.net):** DNS에 `www` → CNAME → `dan0030.github.io`, 루트(`@`) → A `185.199.108.153` · `185.199.109.153` · `185.199.110.153` · `185.199.111.153`를 넣고, 저장소 Settings → Pages → Custom domain에 `www.o-note.net`을 저장한 뒤 **Enforce HTTPS**를 켭니다. 예전 github.io 주소는 새 주소로 자동 이동합니다. 사이트 코드는 주소에 묶여 있지 않아 따로 고칠 것이 없습니다.
 2. **Providers → Email**: `Confirm email` 켜기(이메일 인증 후 가입 완료).
 3. **(선택) GitHub로 로그인**
    - GitHub → Settings → Developer settings → **OAuth Apps → New OAuth App**
