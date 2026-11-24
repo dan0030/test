@@ -1,6 +1,7 @@
 // 페어 폴더 + 페어틀
 import { all, get, update, inFolder } from '../store.js';
-import { imgAttrs, folderIcon, icon, esc, TYPES, emptyState, modal, toast, confirmBox, $ } from '../ui.js';
+import { imgAttrs, folderIcon, icon, esc, TYPES, emptyState, modal, toast, confirmBox, pickFile, $ } from '../ui.js';
+import { saveImage } from '../images.js';
 import { itemCard, newFolderDialog, pageHead, membersOf, membersHTML, rowVals } from '../common.js';
 import { remove } from '../store.js';
 import { openExport } from '../export.js';
@@ -81,6 +82,27 @@ function charDoc(name) {
   return all('character').find((c) => (c.data.title || '').trim() === name.trim());
 }
 
+// 페어틀 사진: 폴더에 따로 올린 사진이 먼저, 없으면 같은 이름의 캐릭터 문서 사진
+const faceImg = (d, name, doc) => (d.faces || {})[name] || doc?.data.image || '';
+
+// 사진 바꾸기 창 (페어 대표 이미지 / 캐릭터별 프사)
+async function photoMenu({ title, hasOwn, note }) {
+  return modal({
+    title,
+    body: `<p class="muted small">${note}</p>`,
+    actions: [
+      ...(hasOwn ? [{ label: '올린 사진 지우기', cls: 'ghost danger', icon: 'trash', value: () => 'clear' }] : []),
+      { label: '취소', cls: 'ghost', value: () => null },
+      { label: hasOwn ? '다른 사진으로 바꾸기' : '사진 올리기', cls: 'primary', icon: 'upload', value: () => 'upload' },
+    ],
+  });
+}
+async function pickPhoto() {
+  const file = await pickFile('image/*');
+  if (!file) return null;
+  try { toast('사진을 올리는 중…'); return await saveImage(file, 'profile'); } catch (e) { toast(e.message || '사진을 올리지 못했어요', 'error'); return null; }
+}
+
 function renderPairtle(body, f, rerender) {
   const d = f.data;
   const mem = membersOf(d);
@@ -91,12 +113,18 @@ function renderPairtle(body, f, rerender) {
   const docs = cols.map((c) => (mem.length ? charDoc(c) : null));
   const tmpl = classic ? 'minmax(0,1fr) minmax(90px,150px) minmax(0,1fr)' : `minmax(96px,150px) repeat(${n}, minmax(${n >= 4 ? 110 : 130}px, 1fr))`;
   const minW = classic ? 0 : 150 + n * (n >= 4 ? 110 : 130);
-  const face = (doc, name) => `<div class="pt-face">${doc?.data.image ? `<img ${imgAttrs(doc.data.image)} alt="">` : `<span class="pt-ph">${icon('user', 26)}</span>`}<b>${esc(name)}</b>${doc ? `<a class="link small" href="#/w/${doc.id}">${icon('contact', 12)} 프로필</a>` : ''}</div>`;
+  const camBtn = (attr, label) => `<button type="button" class="pt-cam" ${attr} title="${label}" aria-label="${label}">${icon('camera', 14)}</button>`;
+  const face = (doc, name, j) => {
+    const src = faceImg(d, name, doc);
+    return `<div class="pt-face"><div class="pt-pic">${src ? `<img ${imgAttrs(src)} alt="">` : `<span class="pt-ph">${icon('user', 26)}</span>`}${mem.length ? camBtn(`data-face="${j}"`, `${name} 사진 바꾸기`) : ''}</div><b>${esc(name)}</b>${doc ? `<a class="link small" href="#/w/${doc.id}">${icon('contact', 12)} 프로필</a>` : ''}</div>`;
+  };
+  const pairPic = (style = '') => (d.pairImage ? `<img class="f-ico pt-pairimg" ${imgAttrs(d.pairImage)} alt="" ${style ? `style="${style}"` : ''}>` : folderIcon(d, '💞', style));
+  const center = `<div class="pt-x"><div class="pt-pic">${pairPic()}${camBtn('data-pairimg', '페어 대표 이미지 바꾸기')}</div></div>`;
   const cell = (ri, j, val) => `<div class="pt-cell" contenteditable="true" data-j="${j}" data-ph="…">${esc(val)}</div>`;
   const label = (r) => `<div class="pt-label" contenteditable="true" data-k="label" data-ph="질문">${esc(r.label)}</div>`;
   const head = classic
-    ? `${face(docs[0], cols[0])}<div class="pt-x">${folderIcon(d)}</div>${face(docs[1], cols[1])}`
-    : `<div class="pt-x">${folderIcon(d)}</div>${cols.map((c, j) => face(docs[j], c)).join('')}`;
+    ? `${face(docs[0], cols[0], 0)}${center}${face(docs[1], cols[1], 1)}`
+    : `${center}${cols.map((c, j) => face(docs[j], c, j)).join('')}`;
   body.innerHTML = `
     <p class="hint">${icon('info', 14)} 페어틀: ${n === 1 ? '캐릭터 한 명에게' : `${n}명의 캐릭터에게`} 같은 질문을 던져 나란히 답하게 해보는 표예요. 칸을 눌러 바로 적고, 이미지로 저장해 공유할 수 있어요.${mem.length ? '' : ' 폴더 수정에서 멤버를 추가해보세요.'}</p>
     <div class="pt-scroll"><div class="pairtle ${classic ? 'classic' : 'multi'}" style="--c:${d.color || '#ccc'};min-width:${minW}px">
@@ -111,6 +139,28 @@ function renderPairtle(body, f, rerender) {
       <button class="btn primary" id="pt-exp">${icon('image-down', 16)} 이미지·HTML로 내보내기</button>
     </div>`;
   const store = () => rows.map((r) => ({ label: r.label, v: [...r.v] }));
+  // 사진 바꾸기: 이 폴더에만 저장 (캐릭터 문서·폴더 아이콘은 그대로)
+  body.querySelector('.pt-head').addEventListener('click', async (e) => {
+    const fb = e.target.closest('[data-face]');
+    const pb = e.target.closest('[data-pairimg]');
+    if (!fb && !pb) return;
+    if (pb) {
+      const act = await photoMenu({ title: '페어 대표 이미지', hasOwn: !!d.pairImage, note: '페어틀 가운데에 들어가는 이미지예요. 이 폴더에만 저장되고, 폴더 아이콘은 바뀌지 않아요. 올리지 않으면 폴더 아이콘을 보여줘요.' });
+      if (act === 'clear') update(f.id, { pairImage: '' });
+      if (act === 'upload') { const ref = await pickPhoto(); if (ref) update(f.id, { pairImage: ref }); }
+      if (act) rerender();
+      return;
+    }
+    const j = +fb.dataset.face; const name = cols[j]; const doc = docs[j];
+    const own = (d.faces || {})[name];
+    const act = await photoMenu({
+      title: `${name} 사진`, hasOwn: !!own,
+      note: `이 폴더의 페어틀에만 쓰이는 사진이에요. 캐릭터 문서의 사진은 바뀌지 않아요.${doc ? ` 올리지 않으면 '${esc(doc.data.title)}' 캐릭터 문서의 사진을 보여줘요.` : ''}`,
+    });
+    if (act === 'clear') update(f.id, (dd) => { const faces = { ...(dd.faces || {}) }; delete faces[name]; return { ...dd, faces }; });
+    if (act === 'upload') { const ref = await pickPhoto(); if (ref) update(f.id, (dd) => ({ ...dd, faces: { ...(dd.faces || {}), [name]: ref } })); }
+    if (act) rerender();
+  });
   body.querySelector('.pt-rows').addEventListener('input', (e) => {
     const c = e.target.closest('.pt-cell,.pt-label'); const row = e.target.closest('.pt-row'); if (!c || !row) return;
     const r = rows[+row.dataset.i];
@@ -136,11 +186,11 @@ function renderPairtle(body, f, rerender) {
   };
   body.querySelector('#pt-exp').onclick = () => {
     const c = d.color || '#ccc';
-    const img = (doc) => (doc?.data.image ? `<img ${imgAttrs(doc.data.image)} alt="" style="width:${n >= 4 ? 72 : 96}px;height:${n >= 4 ? 72 : 96}px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : '');
+    const img = (j) => { const src = faceImg(d, cols[j], docs[j]); return src ? `<img ${imgAttrs(src)} alt="" style="width:${n >= 4 ? 72 : 96}px;height:${n >= 4 ? 72 : 96}px;object-fit:cover;border-radius:50%;margin:0 auto .5em;display:block;">` : ''; };
     const td = (v, extra = '') => `<td style="padding:.7em;text-align:center;border-top:1px solid ${c};word-break:keep-all;${extra}">${esc(v)}</td>`;
     const lab = (v) => td(v, `font-weight:700;font-size:.85em;background:${c}33;`);
-    const faceTd = (j) => `<td style="text-align:center;padding:1em .5em;vertical-align:bottom;">${img(docs[j])}<b style="font-size:1.05em">${esc(cols[j])}</b></td>`;
-    const iconTd = `<td style="text-align:center;font-size:1.6em;width:${classic ? '22%' : '18%'};">${folderIcon(d, '💞', 'width:44px;height:44px;object-fit:cover;border-radius:12px;')}</td>`;
+    const faceTd = (j) => `<td style="text-align:center;padding:1em .5em;vertical-align:bottom;">${img(j)}<b style="font-size:1.05em">${esc(cols[j])}</b></td>`;
+    const iconTd = `<td style="text-align:center;font-size:1.6em;width:${classic ? '22%' : '18%'};">${pairPic(d.pairImage ? 'width:72px;height:72px;object-fit:cover;border-radius:16px;' : 'width:44px;height:44px;object-fit:cover;border-radius:12px;')}</td>`;
     const headRow = classic ? `${faceTd(0)}${iconTd}${faceTd(1)}` : `${iconTd}${cols.map((_, j) => faceTd(j)).join('')}`;
     const html = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>${headRow}</tr>
       ${rows.map((r) => `<tr>${classic ? `${td(r.v[0])}${lab(r.label)}${td(r.v[1])}` : `${lab(r.label)}${r.v.map((v) => td(v)).join('')}`}</tr>`).join('')}

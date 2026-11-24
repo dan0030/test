@@ -2,7 +2,7 @@
 // 문서 엔진: 위키 문서 공방(mnmwiki)의 렌더러/에디터/표 도구 (vendor/nw/*) — 나무위키 형식 출력, 티스토리 붙여넣기 호환
 import { all, get, create, update, settings, updateSettings } from '../store.js';
 import { icon, esc, TYPES, emptyState, toast, pickFile, modal, confirmBox, promptBox, download, safeName, debounce, imgAttrs, isRef, PH } from '../ui.js';
-import { saveImage, inlineImages } from '../images.js';
+import { saveImage, inlineImages, inlineData } from '../images.js';
 import { itemCard, folderBadge, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openColorPopover } from '../colors.js';
 import { formDialog } from '../form.js';
@@ -134,6 +134,81 @@ export function wikiText(it) {
   return t;
 }
 
+// ---------------- mnmwiki 문서 주고받기 ----------------
+// mnmwiki(위키 문서 메이커)의 '파일로 저장'(.mnmwiki.json) 또는 '문서 코드'(MNMWIKI1:…)를 그대로 읽음
+const MNM_PREFIX = 'MNMWIKI1:';
+function decodeMnmwiki(text) {
+  let t = String(text || '').trim();
+  if (!t) throw new Error('empty');
+  let data;
+  if (t[0] === '{') data = JSON.parse(t);
+  else {
+    if (t.startsWith(MNM_PREFIX)) t = t.slice(MNM_PREFIX.length);
+    const bin = atob(t.replace(/\s+/g, ''));
+    data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  }
+  const m = data && data.model;
+  if (!m || typeof m !== 'object' || m.v !== 2 || !Array.isArray(m.chapters)) throw new Error('invalid');
+  // 빠진 칸은 기본값으로 채움 (옛 버전 문서 대비)
+  const base = N().defaults(m.type === 'profile' ? 'profile' : 'plain');
+  const model = { ...base, ...JSON.parse(JSON.stringify(m)), theme: { ...base.theme, ...(m.theme || {}) } };
+  if (base.profile) model.profile = { ...base.profile, ...(m.profile || {}) };
+  return { name: String(data.name || '').slice(0, 200), model };
+}
+
+// 불러오기 창: 파일 고르기 또는 코드 붙여넣기 → { name, model } (취소하면 null)
+async function askMnmwiki({ title = 'mnmwiki 문서 불러오기', okText = '불러오기', warn = '' } = {}) {
+  let fileText = null;
+  return modal({
+    title,
+    body: `<p class="muted small">mnmwiki(위키 문서 메이커)의 <b>다른 기기로 옮기기 → 지금 문서 파일로 저장</b>으로 받은 <code>.mnmwiki.json</code> 파일을 고르거나, <b>지금 문서 코드 복사</b>로 복사한 코드를 붙여넣으세요.</p>
+      <div class="row-inline"><button class="btn ghost" type="button" id="mw-file">${icon('upload', 16)}<span>파일 고르기</span></button><span class="muted small" id="mw-fname">고른 파일 없음</span></div>
+      <label class="lbl" for="mw-code">또는 문서 코드</label>
+      <textarea class="input" id="mw-code" rows="4" spellcheck="false" placeholder="MNMWIKI1:으로 시작하는 코드를 붙여넣으세요"></textarea>
+      <p class="muted small">'파일로 저장'(HTML 내보내기)으로 받은 .html 파일은 문서 정보가 없어 불러올 수 없어요.</p>
+      ${warn ? `<p class="warn-box">${icon('triangle-exclamation-point', 15)} ${warn}</p>` : ''}`,
+    actions: [{ label: '취소', cls: 'ghost', value: () => null }, {
+      label: okText, cls: 'primary', icon: 'check', value: (w) => {
+        const text = fileText ?? w.querySelector('#mw-code').value;
+        if (!String(text || '').trim()) { toast('파일을 고르거나 코드를 붙여넣어 주세요', 'error'); return false; }
+        if (text.length > 20 * 1024 * 1024) { toast('문서가 너무 커요 (20MB 이하)', 'error'); return false; }
+        try { return decodeMnmwiki(text); } catch { toast('mnmwiki 문서 파일이나 코드가 아니에요. 다시 확인해 주세요.', 'error'); return false; }
+      },
+    }],
+    onOpen: (w) => {
+      w.querySelector('#mw-file').onclick = async () => {
+        const f = await pickFile('.json,application/json,text/plain');
+        if (!f) return;
+        if (/\.html?$/i.test(f.name)) { toast('HTML 파일은 불러올 수 없어요. mnmwiki에서 .mnmwiki.json 파일로 저장해 주세요.', 'error'); return; }
+        fileText = await f.text();
+        w.querySelector('#mw-fname').textContent = f.name;
+        w.querySelector('#mw-code').value = '';
+      };
+      w.querySelector('#mw-code').addEventListener('input', () => { fileText = null; w.querySelector('#mw-fname').textContent = '고른 파일 없음'; });
+    },
+  });
+}
+
+// 새 문서로 불러오기 (목록 화면)
+export async function importMnmwiki(type, folderId) {
+  const got = await askMnmwiki();
+  if (!got) return;
+  const m = got.model;
+  if (!N().plainText(m.title || '').trim() && got.name) m.title = esc(got.name);
+  const d = { title: '', folders: folderId ? [folderId] : [], relations: [], category: '' };
+  syncMeta(d, m);
+  d.nw = m;
+  const it = create(type, d);
+  toast(`'${d.title || '문서'}'을(를) 불러왔어요`, 'ok');
+  location.hash = `#/w/${it.id}/edit`;
+}
+
+// mnmwiki에서 열 수 있는 파일로 저장
+function downloadMnmwiki(model, name) {
+  const safe = (name || 'document').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
+  download(`${safe}.mnmwiki.json`, JSON.stringify({ app: 'mnmwiki', v: 1, name, model, updated: Date.now() }), 'application/json');
+}
+
 export function newWiki(type, folderId, title = '') {
   const m = blankModel(type, title);
   const d = { title, folders: folderId ? [folderId] : [], relations: [], category: '' };
@@ -154,13 +229,14 @@ export function renderList(root, type, q) {
   else if (cat) items = items.filter((i) => i.data.category === cat);
   const cats = catsOf(type);
   const base = `#/list/${type}`;
-  const add = `<button class="btn primary" id="new">${icon('plus', 18)} 새 ${t.label} 문서</button>`;
+  const add = `<div class="btn-row"><button class="btn ghost" id="mw-import" title="mnmwiki(위키 문서 메이커)에서 저장한 문서 파일·코드 불러오기">${icon('file-up', 18)}<span>mnmwiki<span class="hide-m"> 문서</span> 불러오기</span></button><button class="btn primary" id="new">${icon('plus', 18)} 새 ${t.label} 문서</button></div>`;
   root.innerHTML = `
     ${pageHead(t.icon, t.label, type === 'character' ? '나무위키처럼 정리하는 캐릭터 프로필. 프로필 표, 접히는 목차·챕터, 각주, 인용구를 지원하고 티스토리에 그대로 붙여넣을 수 있어요.' : '지역·세력·용어 등 세계관 설정을 위키 문서로 모아요. 분류는 직접 만들 수 있어요.', add)}
     ${folderFilter(f)}
     <div class="filter-row">${icon('shapes', 15)}<a class="fchip ${!cat ? 'on' : ''}" href="${base}${f ? `?f=${f}` : ''}">모든 분류</a>${cats.map((c) => `<a class="fchip ${cat === c ? 'on' : ''}" href="${base}?c=${encodeURIComponent(c)}${f ? `&f=${f}` : ''}">${esc(c)}</a>`).join('')}<a class="fchip ${cat === '__none' ? 'on' : ''}" href="${base}?c=__none">미분류</a><button class="fchip add" id="cat-manage">${icon('settings-2', 14)} 분류 관리</button></div>
     ${items.length ? `<div class="grid">${items.map((i) => itemCard(i, { showType: false })).join('')}</div>` : emptyState(t.icon, `아직 ${t.label} 문서가 없어요`, type === 'character' ? '최애의 프로필부터 정리해볼까요?' : '세계관의 첫 설정을 적어보세요.', `<button class="btn primary" id="new2">${icon('plus', 18)} 첫 문서 만들기</button>`)}`;
   root.querySelectorAll('#new,#new2').forEach((b) => (b.onclick = () => newWiki(type, f)));
+  root.querySelector('#mw-import').onclick = () => importMnmwiki(type, f);
   root.querySelector('#cat-manage').onclick = async () => { if (await manageCats(type)) renderList(root, type, q); };
 }
 
@@ -737,13 +813,38 @@ export function renderEdit(root, id) {
         <div class="btn-row">${[['spoiler', '스포일러 주의'], ['pc', 'PC 권장'], ['trigger', '트리거 워닝'], ['info', '일반 안내']].map(([k, n]) => `<button class="btn ghost sm" data-nadd="${k}">${icon('plus', 13)} ${n}</button>`).join('')}</div></div>
       ${it.type === 'character' ? `<div class="panel"><h4>${icon('users', 15)} 관계</h4>
         ${(d.relations || []).map((r, i) => `<div class="rel-row" data-i="${i}"><select class="input sm" data-rid>${others.map((o) => `<option value="${o.id}" ${o.id === r.id ? 'selected' : ''}>${esc(o.data.title || '제목 없음')}</option>`).join('')}</select><input class="input sm" data-rl value="${esc(r.label || '')}" placeholder="관계 (예: 소꿉친구)"><button class="icon-btn sm" data-rrm>${icon('x', 13)}</button></div>`).join('')}
-        ${others.length ? `<button class="btn ghost sm" id="rel-add">${icon('plus', 14)} 관계 추가</button>` : '<p class="muted small">다른 캐릭터 문서를 만들면 관계를 이을 수 있어요.</p>'}</div>` : ''}`;
+        ${others.length ? `<button class="btn ghost sm" id="rel-add">${icon('plus', 14)} 관계 추가</button>` : '<p class="muted small">다른 캐릭터 문서를 만들면 관계를 이을 수 있어요.</p>'}</div>` : ''}
+      <div class="panel"><h4>${icon('file-up', 15)} mnmwiki 문서</h4>
+        <p class="muted small">위키 문서 메이커(mnmwiki)와 문서를 주고받아요.</p>
+        <div class="btn-row"><button class="btn ghost sm" id="mw-replace">${icon('file-up', 14)}<span>불러와서 바꾸기</span></button><button class="btn ghost sm" id="mw-save">${icon('file-down', 14)}<span>mnmwiki 파일로 저장</span></button></div></div>`;
     bindFolderPicker(side, it, drawSide);
     bindTags(side, it);
   }
 
   // 사이드 패널 이벤트 (위임)
   side.addEventListener('click', async (e) => {
+    // mnmwiki 주고받기
+    if (e.target.closest('#mw-save')) {
+      syncActive();
+      const m = JSON.parse(JSON.stringify(model));
+      // 사이트 저장소의 사진(oimg:)은 mnmwiki에서 열리도록 파일 안에 넣음
+      toast('파일을 만드는 중… (사진도 함께 담아요)');
+      const withImgs = await inlineData(m).catch(() => m);
+      downloadMnmwiki(withImgs, it.data.title || R.plainText(model.title) || '문서');
+      toast('mnmwiki 파일로 저장했어요', 'ok');
+      return;
+    }
+    if (e.target.closest('#mw-replace')) {
+      const got = await askMnmwiki({ title: 'mnmwiki 문서로 바꾸기', okText: '바꾸기', warn: '지금 문서의 본문·프로필·디자인이 불러온 문서로 바뀌어요. (폴더·태그·관계·O-note 분류는 그대로)' });
+      if (!got) return;
+      Object.keys(model).forEach((k) => delete model[k]);
+      Object.assign(model, got.model);
+      if (!R.plainText(model.title || '').trim() && got.name) model.title = esc(got.name);
+      startCount(countKey, syncMeta({}, model)); // 불러온 글은 '오늘 쓴 글자'에 세지 않음
+      rerender(); commit();
+      toast('불러온 문서로 바꿨어요', 'ok');
+      return;
+    }
     // 구조
     const row = e.target.closest('.tree-row');
     const op = e.target.closest('[data-op]')?.dataset.op;
