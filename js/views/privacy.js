@@ -4,7 +4,12 @@ import { CONFIG } from '../config.js';
 
 export function policyHTML() {
   const contact = CONFIG.CONTACT || '';
-  const contactHtml = /^https?:\/\//.test(contact) ? `<a href="${esc(contact)}" target="_blank" rel="noopener">${esc(contact)}</a>` : esc(contact || '사이트 운영자');
+  // X(트위터) 주소는 계정 이름으로 보기 좋게 표시
+  const xHandle = contact.match(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/?$/)?.[1];
+  const label = xHandle ? `X(트위터) @${xHandle}` : contact;
+  const contactHtml = /^https?:\/\//.test(contact)
+    ? `<a href="${esc(contact)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a> <span class="muted">(로그인한 이용자는 사이트 안의 건의함으로도 문의할 수 있어요)</span>`
+    : esc(contact || '사이트 운영자');
   return `<article class="policy">
   <p class="policy-lead">O-note(이하 '서비스')는 「개인정보 보호법」 등 관련 법령을 지키며, 이용자의 개인정보를 꼭 필요한 만큼만 처리합니다. 서비스에는 글을 공개하거나 게시하는 기능이 없으며, 이용자가 작성한 기록은 본인만 볼 수 있습니다. 운영자도 이용자의 기록(문서·연성·메모·사진)을 볼 수 없으며, 건의함에 직접 보낸 글만 답변을 위해 운영자가 읽습니다.</p>
 
