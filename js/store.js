@@ -160,7 +160,8 @@ export async function unlock(passphrase, remember) {
 
 // ---------------- 조회 ----------------
 export function all(type) {
-  const arr = [...store.items.values()].filter((i) => (type ? i.type === type : i.type !== 'settings'));
+  // settings(화면 설정)·stat(글자 수 통계)은 기록 목록에 나오지 않는 내부 항목
+  const arr = [...store.items.values()].filter((i) => (type ? i.type === type : i.type !== 'settings' && i.type !== 'stat'));
   return arr.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
 }
 export function get(id) { return store.items.get(id); }

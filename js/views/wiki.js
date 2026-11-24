@@ -7,6 +7,7 @@ import { itemCard, folderBadge, folderPicker, bindFolderPicker, bookmarkBtn, bin
 import { openColorPopover } from '../colors.js';
 import { formDialog } from '../form.js';
 import { copyRich, copyText, exportImages } from '../export.js';
+import { startCount, trackText } from '../stats.js';
 
 const N = () => window.NWR;
 const ED = () => window.NWE;
@@ -330,7 +331,10 @@ export function renderEdit(root, id) {
 
   // ----- 저장 -----
   let timer = null;
-  const commit = () => { clearTimeout(timer); update(it.id, (d) => { d.nw = JSON.parse(JSON.stringify(model)); syncMeta(d, model); return d; }, { silent: true }); };
+  // 오늘 쓴 글자: 본문·프로필 표 등 문서 전체 글자 수가 늘어난 만큼 셈
+  const countKey = `w:${it.id}`;
+  startCount(countKey, syncMeta({}, model));
+  const commit = () => { clearTimeout(timer); update(it.id, (d) => { d.nw = JSON.parse(JSON.stringify(model)); syncMeta(d, model); return d; }, { silent: true }); trackText(countKey, syncMeta({}, model)); };
   const save = () => { clearTimeout(timer); timer = setTimeout(commit, 350); };
 
   // ----- 문서 ↔ 모델 -----

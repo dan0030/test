@@ -448,3 +448,8 @@ returns json language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.my_invite_codes() from public, anon;
 grant execute on function public.my_invite_codes() to authenticated;
+
+-- 오늘 쓴 글자 수(기기별 줄, 계정 단위 합산)를 위한 항목 종류 'stat' 허용
+alter table public.items drop constraint if exists items_type_check;
+alter table public.items add constraint items_type_check
+  check (type in ('folder','character','world','story','plot','memo','idea','vault','settings','stat'));

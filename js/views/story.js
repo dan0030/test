@@ -6,6 +6,7 @@ import { createEditor } from '../editor.js';
 import { itemCard, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openExport } from '../export.js';
 import { openStoryOutput } from '../ebook.js';
+import { startCount, trackText } from '../stats.js';
 
 const STATUS = ['구상 중', '작성 중', '퇴고 중', '완성', '게시 완료'];
 const cid = () => crypto.randomUUID().slice(0, 8);
@@ -109,9 +110,10 @@ export function renderEdit(root, id, q) {
       const li = root.querySelector(`[data-ch="${chId}"] .ch-c`);
       if (li) li.textContent = countText(htmlToText(html)).noSpace.toLocaleString();
       drawGoal();
-      bumpDaily(html, chId);
+      trackText(`s:${it.id}:${chId}`, htmlToText(html));
     },
   });
+  startCount(`s:${it.id}:${chId}`, htmlToText(ch.html || ''));
 
   const go = (cId) => { ed.flush(); location.hash = `#/s/${it.id}?ch=${cId}`; };
   root.querySelector('.ch-list').addEventListener('click', (e) => { const li = e.target.closest('[data-ch]'); if (li) go(li.dataset.ch); });
@@ -172,20 +174,8 @@ export function renderEdit(root, id, q) {
   return { cleanup: () => { ed.flush(); ed.destroy(); } };
 }
 
-// 오늘 쓴 글자 수 추적 (기기별 통계, 내용은 저장하지 않음)
-const base = new Map();
-function bumpDaily(html, key) {
-  const n = countText(htmlToText(html)).noSpace;
-  if (!base.has(key)) { base.set(key, n); return; }
-  const diff = n - base.get(key);
-  base.set(key, n);
-  if (diff <= 0) return;
-  try {
-    const k = `onote-daily-${new Date().toISOString().slice(0, 10)}`;
-    localStorage.setItem(k, String((+localStorage.getItem(k) || 0) + diff));
-  } catch { /* noop */ }
-}
-export function todayWritten() { try { return +localStorage.getItem(`onote-daily-${new Date().toISOString().slice(0, 10)}`) || 0; } catch { return 0; } }
+// 오늘 쓴 글자 수는 stats.js에서 계정 단위로 합산 (내용은 저장하지 않음)
+export { todayWritten } from '../stats.js';
 
 // ---------------- E북 리더 ----------------
 const RPREF = 'onote-reader';
