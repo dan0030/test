@@ -6,6 +6,15 @@ import { icon, esc, modal, toast, confirmBox, download, pickFile } from '../ui.j
 import { pageHead } from '../common.js';
 import { CONFIG } from '../config.js';
 
+// 마지막으로 백업 파일을 받은 날 (이 브라우저 기준)
+const BK_KEY = 'onote-last-backup';
+function lastBackupText() {
+  let t = null; try { t = localStorage.getItem(BK_KEY); } catch { /* noop */ }
+  if (!t) return '이 브라우저에서는 아직 백업을 받은 적이 없어요.';
+  const days = Math.floor((Date.now() - new Date(t).getTime()) / 864e5);
+  return `마지막 백업: ${new Date(t).toLocaleDateString('ko-KR')} (${days ? `${days}일 전` : '오늘'})${days >= 30 ? ' — 새로 받아두는 걸 권장해요.' : ''}`;
+}
+
 export function renderSettings(root, opts) {
   const { signOut, setTheme, editProfile, rememberLogin, setRememberLogin } = opts;
   const cloud = store.mode === 'cloud';
@@ -54,6 +63,7 @@ export function renderSettings(root, opts) {
 
       <section class="card set">
         <h3>${icon('archive', 18)} 백업 · 복원</h3>
+        <div class="tip-box">${icon('lightbulb', 16)}<div><b>가끔 백업 파일을 받아두세요.</b> ${cloud ? 'O-note는 무료 서버로 운영돼 서버 쪽 자동 백업이 없어요. 혹시 모를 서버 문제나 실수로 지운 기록에 대비해, 한 달에 한 번쯤 또는 중요한 글을 많이 쓴 뒤에 받아두면 안심이에요.' : '체험 모드 기록은 이 브라우저에만 있어서, 브라우저 데이터를 지우면 함께 사라져요. 자주 받아두세요.'}<br><span class="muted small" id="bk-last">${lastBackupText()}</span></div></div>
         <p class="muted small">전체 기록을 JSON 파일로 내려받아 보관하거나, 다른 계정/체험 모드에서 불러올 수 있어요. 백업 파일은 암호화되지 않으니 안전한 곳에 보관하세요.</p>
         <div class="btn-row">
           <button class="btn ghost" id="bk">${icon('download', 16)} 백업 파일 받기</button>
@@ -102,6 +112,8 @@ export function renderSettings(root, opts) {
     data.items = await inlineData(data.items);
     download(`o-note-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data), 'application/json');
     toast('백업 파일을 저장했어요', 'ok');
+    try { localStorage.setItem(BK_KEY, new Date().toISOString()); } catch { /* noop */ }
+    $('#bk-last').textContent = lastBackupText();
   };
   const drawUsage = async () => {
     const box = $('#usage'); if (!box) return;

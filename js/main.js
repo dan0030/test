@@ -389,9 +389,9 @@ function mount() {
           <button class="icon-btn hide-d" id="menu" aria-label="메뉴">${icon('menu', 22)}</button>
           <form class="search" id="gs" role="search">${icon('search', 18)}<input placeholder="모든 기록 검색" name="q" aria-label="검색"></form>
           <span class="grow"></span>
-          <a class="icon-btn search-icon" id="search-btn" href="#/search" aria-label="검색" title="검색">${icon('search', 20)}</a>
           <span class="sync" id="sync" title="저장 상태"></span>
           <button class="pomo-chip" id="pchip" title="뽀모도로 타이머">${icon('timer', 16)}<span id="ptime">${fmt(pomo.remaining)}</span></button>
+          <a class="search-icon" id="search-btn" href="#/search" aria-label="검색" title="검색">${icon('search', 17)}</a>
           <button class="btn primary sm" id="newbtn">${icon('plus', 18)}<span class="hide-m">새로 만들기</span></button>
         </header>
         <main id="view" class="view" tabindex="-1"></main>

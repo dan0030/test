@@ -552,7 +552,8 @@ body.reading .view { padding: 0; max-width: none; }
   .show-m { display: inline-flex; }
   .top { padding: 8px 12px; gap: 6px; }
   .top .search { display: none; }
-  .top .search-icon { display: inline-grid; color: var(--text); }
+  .top .search-icon { display: inline-grid; place-items: center; flex-shrink: 0; width: var(--chip-h, 34px); height: var(--chip-h, 34px); border: 1px solid var(--line); background: var(--surface); border-radius: 99px; color: var(--sub); }
+  .top .search-icon:active { background: var(--surface-2); }
   .view { padding: 16px 14px calc(100px + env(safe-area-inset-bottom)); }
   .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 38; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .tabbar a { flex: 1; display: grid; justify-items: center; gap: 1px; padding: 8px 0 6px; color: var(--sub); font-size: 11px; font-weight: 600; }
@@ -876,3 +877,8 @@ a.stat { color: var(--accent-ink); }
 .mycode-meta span { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .mini-bar { height: 5px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
 .mini-bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+
+.tip-box { display: flex; gap: 10px; align-items: flex-start; background: var(--accent-2); color: var(--text); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.65; }
+.tip-box > svg { color: var(--accent-ink); flex-shrink: 0; margin-top: 3px; }
+.tip-box > div { min-width: 0; }
+.tip-box b { color: var(--accent-ink); }
