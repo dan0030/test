@@ -100,17 +100,19 @@ export function toast(msg, type = 'info') {
 }
 
 // ---------- 모달 ----------
-export function modal({ title, body = '', actions = [], wide = false, onOpen } = {}) {
+// help: 도움말 주제 이름을 주면 제목 옆에 '?' 버튼이 생김 (help.js가 눌림을 처리)
+export function modal({ title, body = '', actions = [], wide = false, onOpen, help = '' } = {}) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'modal-back';
     wrap.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <div class="modal-head"><h3>${esc(title)}</h3><button class="icon-btn" data-x aria-label="닫기">${icon('x')}</button></div>
+      <div class="modal-head"><h3>${esc(title)}</h3><div class="modal-head-r">${help ? `<button type="button" class="icon-btn sm help-btn" data-help="${esc(help)}" title="도움말" aria-label="도움말">${icon('circle-question-mark', 18)}</button>` : ''}<button class="icon-btn" data-x aria-label="닫기">${icon('x')}</button></div></div>
       <div class="modal-body">${body}</div>
       ${actions.length ? `<div class="modal-foot">${actions.map((a, i) => `<button class="btn ${a.cls || ''}" data-i="${i}">${a.icon ? icon(a.icon, 16) : ''}${esc(a.label)}</button>`).join('')}</div>` : ''}
     </div>`;
     const close = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
-    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    // 모달이 겹쳐 있으면 맨 위의 것만 닫음 (예: 내보내기 창 위에 연 도움말)
+    const onKey = (e) => { if (e.key === 'Escape' && [...document.querySelectorAll('.modal-back')].pop() === wrap) close(null); };
     document.addEventListener('keydown', onKey);
     wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) close(null); });
     wrap.querySelector('[data-x]').onclick = () => close(null);

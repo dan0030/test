@@ -5,6 +5,7 @@ import { icon, esc, TYPES, emptyState, toast, pickFile, modal, confirmBox, promp
 import { saveImage, inlineImages, inlineData } from '../images.js';
 import { itemCard, folderBadge, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openColorPopover } from '../colors.js';
+import { helpBtn } from '../help.js';
 import { formDialog } from '../form.js';
 
 // 각주 내용(꾸밈 HTML)의 글자만 — 비었는지 확인용
@@ -246,7 +247,7 @@ export function renderList(root, type, q) {
   const base = `#/list/${type}`;
   const add = `<div class="btn-row"><button class="btn ghost" id="mw-import" title="mnmwiki(위키 문서 메이커)에서 저장한 문서 파일·코드 불러오기">${icon('file-up', 18)}<span>mnmwiki<span class="hide-m"> 문서</span> 불러오기</span></button><button class="btn primary" id="new">${icon('plus', 18)} 새 ${t.label} 문서</button></div>`;
   root.innerHTML = `
-    ${pageHead(t.icon, t.label, type === 'character' ? '나무위키처럼 정리하는 캐릭터 프로필. 프로필 표, 접히는 목차·챕터, 각주, 인용구를 지원하고 티스토리에 그대로 붙여넣을 수 있어요.' : '지역·세력·용어 등 세계관 설정을 위키 문서로 모아요. 분류는 직접 만들 수 있어요.', add)}
+    ${pageHead(t.icon, t.label, type === 'character' ? '나무위키처럼 정리하는 캐릭터 프로필. 프로필 표, 접히는 목차·챕터, 각주, 인용구를 지원하고 티스토리에 그대로 붙여넣을 수 있어요.' : '지역·세력·용어 등 세계관 설정을 위키 문서로 모아요. 분류는 직접 만들 수 있어요.', add, 'wiki')}
     ${folderFilter(f)}
     <div class="filter-row">${icon('shapes', 15)}<a class="fchip ${!cat ? 'on' : ''}" href="${base}${f ? `?f=${f}` : ''}">모든 분류</a>${cats.map((c) => `<a class="fchip ${cat === c ? 'on' : ''}" href="${base}?c=${encodeURIComponent(c)}${f ? `&f=${f}` : ''}">${esc(c)}</a>`).join('')}<a class="fchip ${cat === '__none' ? 'on' : ''}" href="${base}?c=__none">미분류</a><button class="fchip add" id="cat-manage">${icon('settings-2', 14)} 분류 관리</button></div>
     ${items.length ? `<div class="grid">${items.map((i) => itemCard(i, { showType: false })).join('')}</div>` : emptyState(t.icon, `아직 ${t.label} 문서가 없어요`, type === 'character' ? '최애의 프로필부터 정리해볼까요?' : '세계관의 첫 설정을 적어보세요.', `<button class="btn primary" id="new2">${icon('plus', 18)} 첫 문서 만들기</button>`)}`;
@@ -346,6 +347,7 @@ async function openWikiExport(it, m) {
   const name = R.plainText(m.title) || '위키 문서';
   await modal({
     title: '위키 문서 내보내기',
+    help: 'wiki',
     wide: true,
     body: `
       <div class="seg" id="wx-mode"><button class="on" data-v="frag">${icon('clipboard-copy', 15)} 티스토리 붙여넣기용</button><button data-v="page">${icon('file-code', 15)} 단독 HTML 파일</button><button data-v="png">${icon('image-down', 15)} 이미지</button></div>
@@ -409,6 +411,7 @@ export function renderEdit(root, id) {
       <span class="grow"></span>
       <button class="btn ghost sm show-m" id="side-toggle">${icon('panel-left', 16)}<span>설정</span></button>
       <span class="muted small hide-m">문서를 눌러 바로 써요 · 자동 저장</span>
+      ${helpBtn('wiki-edit', { label: '사용법' })}
     </div>
     <div class="nw-fbar" role="toolbar" aria-label="위키 서식 도구">
       <div class="tb-group">${TB('undo', 'undo-2', '되돌리기')}${TB('redo', 'redo-2', '다시 실행')}</div>

@@ -1,6 +1,7 @@
 // O-note 자체 리치 텍스트 에디터 (한글/포스타입 스타일, 모바일 대응)
 import { openColorPopover } from './colors.js';
 import { saveImage, uploadDomImages } from './images.js';
+import { helpBtn } from './help.js';
 import { icon, esc, sanitize, htmlToText, countText, modal, toast, pickFile, debounce, imgAttrs, $ } from './ui.js';
 
 const TEXT_COLORS = ['#222222', '#666666', '#b0b0b0', '#e5484d', '#f76b15', '#d6a100', '#30a46c', '#0090ff', '#3e63dd', '#8e4ec6', '#d6409f', '#ffffff'];
@@ -49,6 +50,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
         ${compact ? '' : btn('find', 'text-search', '찾기/바꾸기')}
         ${compact ? '' : btn('focus', 'maximize-2', '집중 모드')}
       </div>
+      <div class="tb-group">${helpBtn('editor', { label: '사용법', cls: 'tb' })}</div>
     </div>
     <div class="ed-area" contenteditable="true" spellcheck="false" data-ph="${esc(placeholder)}" role="textbox" aria-multiline="true"></div>
     <div class="ed-status">

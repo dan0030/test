@@ -87,7 +87,7 @@ export function memoBoard(box, { folderId = null, search = '', filterHTML = '' }
 export function renderMemos(root, q) {
   const f = q.get('f');
   const s = (q.get('q') || '').toLowerCase();
-  root.innerHTML = `${pageHead('sticky-note', '메모', '대사 한 줄, 장면 아이디어, 설정 조각… 짧게 휘갈겨 두는 곳이에요.')}<div id="memo-board"></div>`;
+  root.innerHTML = `${pageHead('sticky-note', '메모', '대사 한 줄, 장면 아이디어, 설정 조각… 짧게 휘갈겨 두는 곳이에요.', '', 'memo')}<div id="memo-board"></div>`;
   memoBoard(root.querySelector('#memo-board'), { folderId: f, search: s, filterHTML: folderFilter(f) });
   const open = q.get('open');
   if (open && get(open)) openMemo(open).then(() => { history.replaceState(null, '', '#/memo'); renderMemos(root, new URLSearchParams()); });

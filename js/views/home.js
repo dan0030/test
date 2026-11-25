@@ -53,7 +53,7 @@ export function renderHome(root) {
 
 export function renderBookmarks(root) {
   const items = all().filter((i) => i.data.bookmarked);
-  root.innerHTML = `${pageHead('bookmark', '북마크', '자주 보는 문서와 글을 모아봐요. 각 문서의 북마크 버튼으로 추가해요.')}
+  root.innerHTML = `${pageHead('bookmark', '북마크', '자주 보는 문서와 글을 모아봐요. 각 문서의 북마크 버튼으로 추가해요.', '', 'search')}
     ${items.length ? `<div class="grid">${items.map((i) => itemCard(i)).join('')}</div>` : emptyState('bookmark', '북마크한 기록이 없어요', '문서 상단의 북마크 버튼을 눌러보세요.')}`;
 }
 
@@ -71,7 +71,7 @@ export function renderSearch(root, q) {
   };
   const res = s ? all(type || null).map((it) => ({ it, snip: hit(it) })).filter((r) => r.snip) : [];
   const mark = (t) => esc(t).replace(new RegExp(esc(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), (m) => `<mark>${m}</mark>`);
-  root.innerHTML = `${pageHead('search', '검색', '제목, 본문, 태그, 인포박스, 사건까지 모두 찾아요.')}
+  root.innerHTML = `${pageHead('search', '검색', '제목, 본문, 태그, 인포박스, 사건까지 모두 찾아요.', '', 'search')}
     <form class="search-big" id="sf">${icon('search', 20)}<input name="q" value="${esc(s)}" placeholder="검색어를 입력하세요" autofocus>
       <select name="t"><option value="">전체</option>${Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${type === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
       <button class="btn primary">검색</button></form>

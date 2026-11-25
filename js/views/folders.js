@@ -5,6 +5,7 @@ import { saveImage } from '../images.js';
 import { itemCard, newFolderDialog, pageHead, membersOf, membersHTML, rowVals } from '../common.js';
 import { remove } from '../store.js';
 import { openExport } from '../export.js';
+import { helpBtn } from '../help.js';
 import { newWiki } from './wiki.js';
 import { newStory } from './story.js';
 import { newPlot } from './plot.js';
@@ -19,7 +20,7 @@ const PAIRTLE_PRESETS = {
 export function renderList(root) {
   const fs = all('folder');
   root.innerHTML = `
-    ${pageHead('folder-heart', '페어 폴더', '페어·CP·작품·AU별로 폴더를 만들어 캐릭터, 세계관, 연성, 플롯, 메모를 모아봐요.', `<button class="btn primary" id="new">${icon('folder-plus', 18)} 새 폴더</button>`)}
+    ${pageHead('folder-heart', '페어 폴더', '페어·CP·작품·AU별로 폴더를 만들어 캐릭터, 세계관, 연성, 플롯, 메모를 모아봐요.', `<button class="btn primary" id="new">${icon('folder-plus', 18)} 새 폴더</button>`, 'folder')}
     ${fs.length ? `<div class="folder-grid">${fs.map((f) => {
       const n = inFolder(f.id).length;
       return `<a class="folder-card" href="#/folder/${f.id}" style="--c:${f.data.color || '#ccc'}">
@@ -51,6 +52,7 @@ export function renderFolder(root, id, q) {
       <div class="fh-act">
         <button class="btn ghost sm" id="f-edit">${icon('pencil', 15)}<span>수정</span></button>
         <button class="btn ghost sm danger" id="f-del">${icon('trash', 15)}</button>
+        ${helpBtn('folder', { label: '사용법' })}
       </div>
     </header>
     <div class="tabs">${tabs.map(([k, ic, n]) => `<a class="tab ${tab === k ? 'on' : ''}" href="#/folder/${id}?tab=${k}">${icon(ic, 16)} ${esc(n)}</a>`).join('')}</div>
@@ -175,6 +177,7 @@ function renderPairtle(body, f, rerender) {
   body.querySelector('#pt-preset').onclick = async () => {
     const name = await modal({
       title: '페어틀 템플릿',
+      help: 'folder',
       body: `<div class="preset-list">${Object.entries(PAIRTLE_PRESETS).map(([k, v]) => `<button class="act" data-p="${esc(k)}">${icon('layout-template', 20)}<b>${esc(k)}</b><span>${esc(v.slice(0, 4).join(' · '))} …</span></button>`).join('')}</div><p class="muted small">기존 질문 뒤에 추가돼요.</p>`,
       onOpen: (w, close) => w.querySelector('.preset-list').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) close(b.dataset.p); }),
     });

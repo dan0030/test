@@ -4,6 +4,7 @@ import { store, initLocal, initCloud, onChange, unlock, flush, pull, get, clearD
 import { startImageHydrator, migrateInlineImages, cleanupImages } from './images.js';
 import { icon, esc, toast, $, modal } from './ui.js';
 import { pomo, onPomo, fmt, start, pause } from './pomodoro.js';
+import { installHelp, openHelp, topicForHash } from './help.js';
 import * as Home from './views/home.js';
 import * as Folders from './views/folders.js';
 import * as Wiki from './views/wiki.js';
@@ -451,6 +452,7 @@ function mount() {
           <span class="grow"></span>
           <span class="sync" id="sync" title="저장 상태"></span>
           <button class="pomo-chip" id="pchip" title="뽀모도로 타이머">${icon('timer', 16)}<span id="ptime">${fmt(pomo.remaining)}</span></button>
+          <button class="icon-btn" id="helpbtn" title="이 화면 도움말" aria-label="이 화면 도움말">${icon('circle-question-mark', 20)}</button>
           <a class="search-icon" id="search-btn" href="#/search" aria-label="검색" title="검색">${icon('search', 17)}</a>
           <button class="btn primary sm" id="newbtn">${icon('plus', 18)}<span class="hide-m">새로 만들기</span></button>
         </header>
@@ -467,6 +469,8 @@ function mount() {
   side.addEventListener('click', (e) => { if (e.target.closest('a')) closeSide(); });
   $('#gs').onsubmit = (e) => { e.preventDefault(); const q = e.target.q.value.trim(); if (q) location.hash = `#/search?q=${encodeURIComponent(q)}`; };
   $('#newbtn').onclick = newMenu;
+  installHelp();
+  $('#helpbtn').onclick = () => openHelp(topicForHash());
   $('#pchip').onclick = () => { if (location.hash.startsWith('#/tools?tab=pomo')) { pomo.running ? pause() : start(); } else location.hash = '#/tools?tab=pomo'; };
 
   onPomo(() => {

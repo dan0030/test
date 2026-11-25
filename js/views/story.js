@@ -6,6 +6,7 @@ import { createEditor } from '../editor.js';
 import { itemCard, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openExport } from '../export.js';
 import { openStoryOutput } from '../ebook.js';
+import { helpBtn } from '../help.js';
 import { startCount, trackText } from '../stats.js';
 
 const STATUS = ['구상 중', '작성 중', '퇴고 중', '완성', '게시 완료'];
@@ -21,7 +22,7 @@ export function renderList(root, q) {
   let items = all('story');
   if (f) items = items.filter((i) => (i.data.folders || []).includes(f));
   root.innerHTML = `
-    ${pageHead('book-open', '연성', '회차별로 글을 쓰고, E북처럼 넘겨보며 퇴고해요. 완성한 글은 HTML·이미지로 내보내 다른 플랫폼에 올려요.', `<button class="btn primary" id="new">${icon('plus', 18)} 새 연성</button>`)}
+    ${pageHead('book-open', '연성', '회차별로 글을 쓰고, E북처럼 넘겨보며 퇴고해요. 완성한 글은 HTML·이미지로 내보내 다른 플랫폼에 올려요.', `<button class="btn primary" id="new">${icon('plus', 18)} 새 연성</button>`, 'story')}
     ${folderFilter(f)}
     ${items.length ? `<div class="grid">${items.map((i) => storyCard(i)).join('')}</div>` : emptyState('book-open', '아직 연성이 없어요', '첫 문장을 적어볼까요?', `<button class="btn primary" id="new2">${icon('feather', 18)} 글쓰기 시작</button>`)}`;
   root.querySelectorAll('#new,#new2').forEach((b) => (b.onclick = () => newStory(f)));
@@ -60,6 +61,7 @@ export function renderEdit(root, id, q) {
       <button class="btn ghost sm" id="exp">${icon('share', 16)}<span>출력하기</span></button>
       ${bookmarkBtn(it)}
       <button class="btn ghost sm danger" id="del" title="삭제">${icon('trash', 16)}</button>
+      ${helpBtn('story', { label: '사용법' })}
     </div>
     <div class="story-edit">
       <aside class="se-side" id="se-side">
@@ -199,6 +201,7 @@ export function renderReader(root, id, q) {
         <div class="rd-title"><b>${esc(d.title || '제목 없음')}</b><select id="rd-ch" aria-label="회차 선택">${chs.map((c, i) => `<option value="${i}" ${i === ci ? 'selected' : ''}>${esc(c.title || `${i + 1}화`)}</option>`).join('')}</select></div>
         <button class="icon-btn" id="rd-mark" title="책갈피">${icon('bookmark-plus', 20)}</button>
         <button class="icon-btn" id="rd-set" title="보기 설정">${icon('type', 20)}</button>
+        <button type="button" class="icon-btn help-btn" data-help="reader" title="E북 리더 사용법" aria-label="E북 리더 사용법">${icon('circle-question-mark', 20)}</button>
       </div>
       <div class="rd-stage" id="rd-stage"><div class="rd-cols" id="rd-cols"></div>
         <button class="rd-tap l" id="rd-prev" aria-label="이전 페이지"></button><button class="rd-tap r" id="rd-next" aria-label="다음 페이지"></button>

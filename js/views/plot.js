@@ -3,6 +3,7 @@ import { all, get, create, update } from '../store.js';
 import { icon, esc, emptyState, modal, toast, confirmBox, COLORS } from '../ui.js';
 import { itemCard, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
 import { openExport } from '../export.js';
+import { helpBtn } from '../help.js';
 import { colorPick, bindColorPick, pickedColor } from '../colors.js';
 
 const ACTS = ['발단', '전개', '위기', '절정', '결말'];
@@ -19,7 +20,7 @@ export function renderList(root, q) {
   let items = all('plot');
   if (f) items = items.filter((i) => (i.data.folders || []).includes(f));
   root.innerHTML = `
-    ${pageHead('git-commit-vertical', '플롯·타임라인', '사건을 카드로 쌓고, 서술 순서와 실제 시간 순서를 비교하며 설정 오류를 점검해요.', `<button class="btn primary" id="new">${icon('plus', 18)} 새 플롯</button>`)}
+    ${pageHead('git-commit-vertical', '플롯·타임라인', '사건을 카드로 쌓고, 서술 순서와 실제 시간 순서를 비교하며 설정 오류를 점검해요.', `<button class="btn primary" id="new">${icon('plus', 18)} 새 플롯</button>`, 'plot')}
     ${folderFilter(f)}
     ${items.length ? `<div class="grid">${items.map((i) => itemCard(i, { showType: false })).join('')}</div>` : emptyState('git-commit-vertical', '아직 플롯이 없어요', '이야기의 큰 줄기를 사건 단위로 정리해보세요.', `<button class="btn primary" id="new2">${icon('plus', 18)} 첫 플롯 만들기</button>`)}`;
   root.querySelectorAll('#new,#new2').forEach((b) => (b.onclick = () => newPlot(f)));
@@ -71,6 +72,7 @@ export function renderView(root, id, q) {
       <a class="btn ghost sm" href="#/list/plot">${icon('arrow-left', 16)}<span>목록</span></a><span class="grow"></span>
       <button class="btn ghost sm" id="exp">${icon('share', 16)}<span>내보내기</span></button>${bookmarkBtn(it)}
       <button class="btn ghost sm danger" id="del">${icon('trash', 16)}</button>
+      ${helpBtn('plot', { label: '사용법' })}
     </div>
     <input class="title-in" id="p-title" value="${esc(d.title || '')}" placeholder="플롯 제목 (예: 본편 1부, ○○ AU)" maxlength="80">
     <input class="input sub-in" id="p-desc" value="${esc(d.desc || '')}" placeholder="한 줄 설명" maxlength="140">
