@@ -109,6 +109,7 @@ export async function openExport({ title, subtitle = '', html }) {
     </div>`;
   return modal({
     title: '내보내기 · 옮겨 게시하기',
+    help: 'export',
     wide: true,
     body,
     onOpen: (w) => {

@@ -910,3 +910,20 @@ a.stat { color: var(--accent-ink); }
 .pt-x .pt-pairimg { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; border: 3px solid var(--c); }
 .pairtle.multi .pt-x .pt-pairimg { width: 56px; height: 56px; }
 @media (max-width: 860px) { .pt-x .pt-pairimg { width: 52px; height: 52px; } }
+
+/* ---------- 도움말 ---------- */
+.help-btn { color: var(--accent-ink); }
+.help-btn:hover { background: var(--accent-2); color: var(--accent-ink); }
+.page-head h1 .help-btn, .panel h3 .help-btn, section h3 .help-btn { vertical-align: middle; margin-left: 4px; }
+.modal-head-r { display: flex; align-items: center; gap: 2px; }
+.help-body { display: grid; gap: 14px; }
+.help-title { display: flex; align-items: center; gap: 10px; }
+.help-ic { width: 36px; height: 36px; border-radius: 11px; background: var(--accent-2); color: var(--accent-ink); display: grid; place-items: center; flex-shrink: 0; }
+.help-title h4 { margin: 0; font-size: 17px; }
+.help-intro { margin: 0; color: var(--sub); font-size: 14px; }
+.help-sec h5 { margin: 0 0 6px; font-size: 14px; color: var(--text); }
+.help-sec ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 14px; }
+.help-sec li::marker { color: var(--accent); }
+.help-sec code { background: var(--surface-2); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+.help-more { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.help-more .fchip { font-size: 12px; padding: 4px 10px; }

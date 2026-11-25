@@ -39,7 +39,7 @@ export function renderTools(root, q) {
   const tab = q.get('tab') || 'count';
   const tabs = [['count', 'type', '글자 수 세기'], ['pomo', 'timer', '뽀모도로'], ['idea', 'lightbulb', '브레인스토밍'], ['name', 'signature', '이름 짓기']];
   root.innerHTML = `
-    ${pageHead('wand-sparkles', '글쓰기 도구', '글자 수 세기, 집중 타이머, 아이디어가 막힐 때 쓰는 생성기를 모았어요.')}
+    ${pageHead('wand-sparkles', '글쓰기 도구', '글자 수 세기, 집중 타이머, 아이디어가 막힐 때 쓰는 생성기를 모았어요.', '', 'tools')}
     <div class="tabs">${tabs.map(([k, ic, n]) => `<a class="tab ${tab === k ? 'on' : ''}" href="#/tools?tab=${k}">${icon(ic, 16)} ${n}</a>`).join('')}</div>
     <div id="t-body"></div>`;
   const body = root.querySelector('#t-body');

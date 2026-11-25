@@ -4,6 +4,7 @@ import { usage, cleanupImages, migrateInlineImages, reencryptImages, deleteAllIm
 import { cacheEnabled, setCacheEnabled } from '../cache.js';
 import { icon, esc, modal, toast, confirmBox, download, pickFile } from '../ui.js';
 import { pageHead } from '../common.js';
+import { helpBtn } from '../help.js';
 import { CONFIG } from '../config.js';
 import { isEmailAccount, isUnconfirmed, refreshUser, bindEmailActions } from '../email.js';
 
@@ -23,7 +24,7 @@ export function renderSettings(root, opts) {
   const theme = document.documentElement.dataset.theme || 'auto';
   const isOAuth = store.user?.app_metadata?.provider && store.user.app_metadata.provider !== 'email';
   root.innerHTML = `
-    ${pageHead('settings', '설정', '계정, 보안, 백업, 화면 설정을 관리해요.')}
+    ${pageHead('settings', '설정', '계정, 보안, 백업, 화면 설정을 관리해요.', '', 'settings')}
     <div class="set-grid">
       <section class="card set">
         <h3>${icon('user-round', 18)} 계정</h3>
@@ -49,7 +50,7 @@ export function renderSettings(root, opts) {
       </section>
 
       <section class="card set">
-        <h3>${icon('shield-check', 18)} 보안 금고 (종단간 암호화)</h3>
+        <h3>${icon('shield-check', 18)} 보안 금고 (종단간 암호화) ${helpBtn('vault')}</h3>
         <p class="muted small">켜면 모든 기록이 <b>내 브라우저에서 암호화된 뒤</b> 서버로 전송돼요. 사이트 운영자나 서버 관리자도 내용을 볼 수 없어요. 새 기기에서는 금고 암호를 한 번 입력해야 해요.</p>
         <p class="warn-box">${icon('triangle-exclamation-point', 15)} 금고 암호를 잊으면 <b>누구도 기록을 복구할 수 없어요.</b> 꼭 따로 적어두세요.</p>
         ${!cloud ? '<p class="muted small">클라우드 모드에서 사용할 수 있어요.</p>' : vaultOn
@@ -166,6 +167,7 @@ export function renderSettings(root, opts) {
   $('#v-on') && ($('#v-on').onclick = async () => {
     const pass = await modal({
       title: '보안 금고 켜기',
+      help: 'vault',
       body: `<p class="muted small">로그인 비밀번호와 <b>다른</b> 긴 암호 문구를 권장해요. (예: 좋아하는 대사 한 줄)</p>
         <input class="input" type="password" id="v1" placeholder="금고 암호 (10자 이상)" autocomplete="new-password"><input class="input" type="password" id="v2" placeholder="한 번 더" autocomplete="new-password">
         <label class="lbl"><input type="checkbox" id="v3"> 금고 암호를 잊으면 복구할 수 없다는 것을 이해했어요.</label>`,

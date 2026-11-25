@@ -4,6 +4,7 @@ import { saveImage } from './images.js';
 import { bgAttrs, folderIcon, pickFile, icon, esc, chips, TYPES, COLORS, modal, confirmBox, toast, timeAgo, htmlToText, fmtDate } from './ui.js';
 import { wikiText } from './views/wiki.js';
 import { colorPick, bindColorPick, pickedColor } from './colors.js';
+import { helpBtn } from './help.js';
 
 // 폴더 멤버: 1명(단독)·2명(페어)·3명 이상(다인) 모두 지원. 예전 {pair:{a,b}} 형식도 읽음
 export const membersOf = (d) => (Array.isArray(d?.members) ? d.members : [d?.pair?.a, d?.pair?.b]).map((x) => String(x || '').trim()).filter(Boolean);
@@ -234,8 +235,9 @@ export async function deleteItem(it, after = '#/') {
   }
 }
 
-export function pageHead(ic, title, desc, right = '') {
-  return `<header class="page-head"><div class="ph-ic">${icon(ic, 26)}</div><div class="ph-text"><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="ph-right">${right}</div></header>`;
+// help: 도움말 주제 이름 (주면 제목 옆에 '?' 버튼)
+export function pageHead(ic, title, desc, right = '', help = '') {
+  return `<header class="page-head"><div class="ph-ic">${icon(ic, 26)}</div><div class="ph-text"><h1>${esc(title)}${help ? helpBtn(help) : ''}</h1><p>${esc(desc)}</p></div><div class="ph-right">${right}</div></header>`;
 }
 
 export function folderFilter(current) {

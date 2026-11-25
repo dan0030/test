@@ -176,6 +176,7 @@ export async function openStoryOutput({ title, subtitle, chapters, fallback }) {
   chapters = await Promise.all(chapters.map(async (c) => ({ ...c, html: await inlineImages(c.html) })));
   const mode = await modal({
     title: '연성 출력하기',
+    help: 'export',
     body: `<div class="out-choice">
       <button class="act" data-m="ebook">${icon('book-open-text', 26)}<b>E북으로 출력하기</b><span>티스토리 HTML 모드에 코드를 붙여넣으면 옆으로 넘겨 읽는 책이 돼요</span></button>
       <button class="act" data-m="image">${icon('image-down', 26)}<b>이미지로 출력하기</b><span>책 쪽 모양 그대로 PNG 이미지로 저장해요 (트위터·인스타용)</span></button>
@@ -189,6 +190,7 @@ export async function openStoryOutput({ title, subtitle, chapters, fallback }) {
   if (mode === 'image') { opt.script = false; }
   await modal({
     title: mode === 'ebook' ? 'E북으로 출력하기' : '이미지로 출력하기',
+    help: 'export',
     wide: true,
     body: `<div class="exp-grid">
       <div class="eb-opts">
