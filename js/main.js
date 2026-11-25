@@ -450,11 +450,11 @@ function mount() {
           <button class="icon-btn hide-d" id="menu" aria-label="메뉴">${icon('menu', 22)}</button>
           <form class="search" id="gs" role="search">${icon('search', 18)}<input placeholder="모든 기록 검색" name="q" aria-label="검색"></form>
           <span class="grow"></span>
-          <span class="sync" id="sync" title="저장 상태"></span>
-          <button class="pomo-chip" id="pchip" title="뽀모도로 타이머">${icon('timer', 16)}<span id="ptime">${fmt(pomo.remaining)}</span></button>
-          <button class="icon-btn" id="helpbtn" title="이 화면 도움말" aria-label="이 화면 도움말">${icon('circle-question-mark', 20)}</button>
-          <a class="search-icon" id="search-btn" href="#/search" aria-label="검색" title="검색">${icon('search', 17)}</a>
-          <button class="btn primary sm" id="newbtn">${icon('plus', 18)}<span class="hide-m">새로 만들기</span></button>
+          <span class="sync top-btn" id="sync" title="저장 상태"></span>
+          <button class="top-btn sq" id="helpbtn" title="이 화면 도움말" aria-label="이 화면 도움말">${icon('circle-question-mark', 18)}</button>
+          <button class="top-btn pomo-chip" id="pchip" title="뽀모도로 타이머">${icon('timer', 18)}<span id="ptime">${fmt(pomo.remaining)}</span></button>
+          <a class="top-btn sq search-icon" id="search-btn" href="#/search" aria-label="검색" title="검색">${icon('search', 18)}</a>
+          <button class="top-btn primary" id="newbtn" aria-label="새로 만들기">${icon('plus', 18)}<span class="hide-m">새로 만들기</span></button>
         </header>
         <main id="view" class="view" tabindex="-1"></main>
       </div>
@@ -482,8 +482,8 @@ function mount() {
     const s = store.status;
     const map = { saved: ['cloud-check', store.mode === 'cloud' ? '동기화됨' : '저장됨'], saving: ['loader', '저장 중…'], error: ['cloud-exclamation-point', '저장 실패 · 재시도 중'], offline: ['cloud-off', '오프라인'], quota: ['cloud-exclamation-point', '저장 공간 가득 참'] };
     const [ic, t] = map[s] || map.saved;
-    $('#sync').innerHTML = `${icon(store.mode === 'local' && s === 'saved' ? 'hard-drive' : ic, 16, s === 'saving' ? 'spin' : '')}<span class="hide-m">${t}</span>`;
-    $('#sync').className = `sync s-${s}`;
+    $('#sync').innerHTML = `${icon(store.mode === 'local' && s === 'saved' ? 'hard-drive' : ic, 18, s === 'saving' ? 'spin' : '')}<span class="hide-m">${t}</span>`;
+    $('#sync').className = `sync top-btn s-${s}`;
   };
   drawSync();
   onChange((kind) => {

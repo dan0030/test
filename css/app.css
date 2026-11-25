@@ -109,14 +109,25 @@ textarea.input { resize: vertical; line-height: 1.6; }
 .n-t small { font-size: 11.5px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .main { flex: 1; margin-left: var(--side-w); min-width: 0; display: flex; flex-direction: column; }
 .top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
-.search-icon { display: none; }
+.top .search-icon { display: none; }
 .search { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 0 12px; flex: 0 1 380px; color: var(--sub); }
 .search input { border: 0; outline: 0; background: transparent; padding: 9px 0; width: 100%; color: var(--text); }
-.sync { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--sub); }
-.sync.s-error, .sync.s-offline { color: var(--danger); }
-.pomo-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 11px; font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--sub); }
-.pomo-chip.run { background: var(--pink); color: #fff; border-color: transparent; }
-.pomo-chip.run.brk { background: var(--ok); }
+.top { --top-h: 40px; }
+.top .search { height: var(--top-h); }
+.top .search input { padding: 0; height: 100%; }
+/* 위쪽 막대 버튼: 저장 상태 · 도움말 · 타이머 · 검색 · 새로 만들기를 같은 높이·모서리·테두리로 통일 */
+.top-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; height: var(--top-h); min-width: var(--top-h); padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--sub); font-size: 13px; font-weight: 700; line-height: 1; white-space: nowrap; transition: background .15s, color .15s; }
+.top-btn .ic { flex-shrink: 0; }
+.top-btn.sq { width: var(--top-h); padding: 0; }
+.top-btn:not(.primary):not(.run):not(.sync):hover { background: var(--surface-2); color: var(--text); }
+.top-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 0 14px; }
+.top-btn.primary:hover { filter: brightness(1.06); }
+.sync { cursor: default; font-size: 12.5px; font-weight: 600; }
+.sync.s-error, .sync.s-offline, .sync.s-quota { color: var(--danger); }
+.pomo-chip { font-variant-numeric: tabular-nums; }
+.pomo-chip.run { background: var(--pink); color: #fff; border-color: var(--pink); }
+.pomo-chip.run.brk { background: var(--ok); border-color: var(--ok); }
+.pomo-chip.run:hover { filter: brightness(1.06); }
 .view { padding: 24px 28px 120px; max-width: 1240px; width: 100%; margin: 0 auto; outline: none; }
 .tabbar { display: none; }
 .side-back { display: none; }
@@ -553,8 +564,12 @@ body.reading .view { padding: 0; max-width: none; }
   .show-m { display: inline-flex; }
   .top { padding: 8px 12px; gap: 6px; }
   .top .search { display: none; }
-  .top .search-icon { display: inline-grid; place-items: center; flex-shrink: 0; width: var(--chip-h, 34px); height: var(--chip-h, 34px); border: 1px solid var(--line); background: var(--surface); border-radius: 99px; color: var(--sub); }
-  .top .search-icon:active { background: var(--surface-2); }
+  .top { --top-h: 36px; }
+  .top .search-icon { display: inline-flex; }
+  .top .top-btn { padding: 0 8px; }
+  .top .top-btn.primary { padding: 0; width: var(--top-h); }
+  .top .sync { padding: 0; width: var(--top-h); }
+  .top .top-btn:not(.primary):not(.run):not(.sync):active { background: var(--surface-2); }
   .view { padding: 16px 14px calc(100px + env(safe-area-inset-bottom)); }
   .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 38; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .tabbar a { flex: 1; display: grid; justify-items: center; gap: 1px; padding: 8px 0 6px; color: var(--sub); font-size: 11px; font-weight: 600; }
