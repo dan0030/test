@@ -93,9 +93,10 @@ textarea.input { resize: vertical; line-height: 1.6; }
 /* ---------- 레이아웃 ---------- */
 .shell { display: flex; min-height: 100vh; }
 .side { position: fixed; inset: 0 auto 0 0; width: var(--side-w); background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 12px; z-index: 40; overflow-y: auto; }
-.logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: var(--text); padding: 4px 10px 18px; letter-spacing: -.02em; }
-.logo.big { justify-content: center; font-size: 28px; padding-bottom: 6px; }
-.logo.big svg { width: 40px; height: 40px; }
+.logo { display: flex; align-items: center; color: var(--text); padding: 4px 10px 18px; }
+.logo-mark { display: block; height: 30px; width: auto; }
+.logo.big { justify-content: center; padding-bottom: 6px; }
+.logo.big .logo-mark { height: 40px; }
 .nav, .side-foot { display: flex; flex-direction: column; gap: 2px; }
 .side-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
 .nav a, .side-foot a { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 11px; color: var(--text); }
