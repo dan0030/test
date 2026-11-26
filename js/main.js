@@ -421,19 +421,38 @@ async function signOut() {
 }
 
 // ---------- 레이아웃 ----------
+// 좌측 메뉴: 상위 카테고리 4개. kids가 있는 카테고리는 폴더처럼 접고 펼 수 있음
 const NAV = [
-  ['#/', 'house', '홈', '오늘의 기록과 바로가기'],
-  ['#/folders', 'folder-heart', '페어 폴더', '페어별 자료 모음'],
-  ['#/photos', 'images', '사진 모음', '모든 폴더의 사진 자료'],
-  ['#/commissions', 'gift', '커미션', '위시리스트 · 신청 · 마감 관리'],
-  ['#/list/character', 'contact', '캐릭터', '위키형 프로필'],
-  ['#/list/world', 'globe', '세계관', '설정 문서'],
-  ['#/list/story', 'book-open', '연성', '글쓰기 · E북 보기'],
-  ['#/list/plot', 'git-commit-vertical', '플롯·타임라인', '사건 순서 점검'],
-  ['#/memo', 'sticky-note', '메모', '짧은 메모'],
-  ['#/bookmarks', 'bookmark', '북마크', '모아 보기'],
-  ['#/tools', 'wand-sparkles', '글쓰기 도구', '글자 수 · 타이머 · 아이디어'],
+  { h: '#/', ic: 'house', n: '홈', d: '오늘의 기록과 바로가기' },
+  { key: 'pair', h: '#/folders', ic: 'folder-heart', n: '페어 폴더', d: '페어별 자료 모음', kids: [
+    ['#/list/character', 'contact', '캐릭터', '위키형 프로필'],
+    ['#/list/world', 'globe', '세계관', '설정 문서'],
+    ['#/list/story', 'book-open', '연성', '글쓰기 · E북 보기'],
+    ['#/list/plot', 'git-commit-vertical', '플롯', '타임라인 · 사건 순서 점검'],
+    ['#/memo', 'sticky-note', '메모', '짧은 메모'],
+    ['#/photos', 'images', '사진 모음', '모든 폴더의 사진 자료'],
+    ['#/commissions', 'gift', '커미션', '위시리스트 · 신청 · 마감 관리'],
+  ] },
+  { h: '#/bookmarks', ic: 'bookmark', n: '북마크', d: '모아 보기' },
+  { h: '#/tools', ic: 'wand-sparkles', n: '글쓰기 도구', d: '글자 수 · 타이머 · 아이디어' },
 ];
+const SIDE_MINI_KEY = 'onote-side-mini';
+const NAV_CLOSED_KEY = 'onote-nav-closed';
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* noop */ } };
+const closedGroups = () => { try { return JSON.parse(lsGet(NAV_CLOSED_KEY) || '[]'); } catch { return []; } };
+const navLink = (h, ic, n, d, kid = false) => `<a href="${h}" data-nav="${h}" title="${esc(d ? `${n} · ${d}` : n)}"${kid ? ' class="kid"' : ''}><span class="n-ic">${icon(ic, kid ? 17 : 20)}</span><span class="n-t"><b>${n}</b>${d && !kid ? `<small>${d}</small>` : ''}</span></a>`;
+function navHtml() {
+  const closed = closedGroups();
+  return NAV.map((g) => {
+    if (!g.kids) return navLink(g.h, g.ic, g.n, g.d);
+    const isClosed = closed.includes(g.key);
+    return `<div class="grp${isClosed ? ' closed' : ''}" data-grp="${g.key}">
+      <div class="grp-head">${navLink(g.h, g.ic, g.n, g.d)}<button type="button" class="grp-tg" aria-expanded="${!isClosed}" aria-label="${g.n} 하위 메뉴 접기/펼치기" title="접기/펼치기">${icon('chevron-down', 16)}</button></div>
+      <div class="grp-kids">${g.kids.map(([h, ic, n, d]) => navLink(h, ic, n, d, true)).join('')}</div>
+    </div>`;
+  }).join('');
+}
 const TABBAR = [['#/', 'house', '홈'], ['#/folders', 'folder-heart', '폴더'], ['#/list/story', 'book-open', '연성'], ['#/memo', 'sticky-note', '메모'], ['more', 'menu', '전체']];
 
 // 로고: 아이콘과 'O-note' 글자를 한 장의 SVG로 그림.
@@ -447,8 +466,11 @@ function mount() {
   app.innerHTML = `
     <div class="shell">
       <aside class="side" id="side">
-        <a class="logo" href="#/">${logoSvg()}</a>
-        <nav class="nav">${NAV.map(([h, ic, n, d]) => `<a href="${h}" data-nav="${h}"><span class="n-ic">${icon(ic, 20)}</span><span class="n-t"><b>${n}</b><small>${d}</small></span></a>`).join('')}</nav>
+        <div class="side-head">
+          <a class="logo" href="#/">${logoSvg()}</a>
+          <button type="button" class="side-tg" id="side-tg" aria-label="메뉴 접기" title="메뉴 접기">${icon('panel-left', 18)}</button>
+        </div>
+        <nav class="nav">${navHtml()}</nav>
         ${store.mode === 'cloud' ? `<nav class="nav nav-sub">
           <a href="#/mail" data-nav="#/mail"><span class="n-ic">${icon('mail', 20)}</span><span class="n-t"><b>우편함</b><small>소식 · 선물 · 내 초대 코드</small></span><span class="nbadge" data-mail-badge hidden></span></a>
           <a href="#/suggest" data-nav="#/suggest"><span class="n-ic">${icon('message-square', 20)}</span><span class="n-t"><b>건의함</b><small>의견 · 오류 제보</small></span></a>
@@ -481,6 +503,22 @@ function mount() {
   $('#menu').onclick = () => { side.classList.add('open'); back.classList.add('open'); };
   $('#more').onclick = (e) => { e.preventDefault(); side.classList.add('open'); back.classList.add('open'); };
   back.onclick = closeSide;
+  // 좌측 메뉴 전체 접기/펼치기 (PC 화면). 접으면 아이콘만 보이는 좁은 메뉴가 됨
+  const setMini = (on) => {
+    document.body.classList.toggle('side-mini', on);
+    const b = $('#side-tg'); const t = on ? '메뉴 펼치기' : '메뉴 접기';
+    b.setAttribute('aria-label', t); b.title = t; b.setAttribute('aria-expanded', String(!on));
+  };
+  setMini(lsGet(SIDE_MINI_KEY) === '1');
+  $('#side-tg').onclick = () => { const on = !document.body.classList.contains('side-mini'); setMini(on); lsSet(SIDE_MINI_KEY, on ? '1' : '0'); };
+  // 카테고리 폴더 접기/펼치기
+  side.addEventListener('click', (e) => {
+    const tg = e.target.closest('.grp-tg'); if (!tg) return;
+    const grp = tg.closest('.grp'); const closed = grp.classList.toggle('closed');
+    tg.setAttribute('aria-expanded', String(!closed));
+    const set = new Set(closedGroups()); closed ? set.add(grp.dataset.grp) : set.delete(grp.dataset.grp);
+    lsSet(NAV_CLOSED_KEY, JSON.stringify([...set]));
+  });
   side.addEventListener('click', (e) => { if (e.target.closest('a')) closeSide(); });
   $('#gs').onsubmit = (e) => { e.preventDefault(); const q = e.target.q.value.trim(); if (q) location.hash = `#/search?q=${encodeURIComponent(q)}`; };
   $('#newbtn').onclick = newMenu;
@@ -573,6 +611,8 @@ function route() {
     const h = a.dataset.nav.slice(1);
     a.classList.toggle('on', h === '/' ? path === '/' : path.startsWith(h) || (h === '/list/story' && parts[0] === 's') || (h === '/list/plot' && parts[0] === 'p') || (h === '/folders' && parts[0] === 'folder'));
   });
+  // 접힌 카테고리 안의 메뉴를 보고 있으면 상위 카테고리를 표시
+  document.querySelectorAll('.grp').forEach((g) => g.classList.toggle('has-on', !!g.querySelector('.grp-kids a.on')));
   view.scrollTop = 0; window.scrollTo(0, 0);
   let r;
   try {
