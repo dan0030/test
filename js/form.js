@@ -59,17 +59,26 @@ function bindRich(w) {
   w.querySelectorAll('.rich').forEach((box) => {
     const area = box.querySelector('.rich-area');
     let saved = null;
-    const save = () => { const s = window.getSelection(); if (s.rangeCount && area.contains(s.anchorNode)) saved = s.getRangeAt(0).cloneRange(); };
+    // 버튼을 누르는 순간(특히 모바일)의 선택 변화가 드래그한 범위를 덮어쓰지 않게 잠깐 붙잡아 둠
+    let holding = false; let holdTimer = null;
+    const save = (force = false) => {
+      if (holding && force !== true) return;
+      const s = window.getSelection(); if (s.rangeCount && area.contains(s.anchorNode)) saved = s.getRangeAt(0).cloneRange();
+    };
     const restore = () => { area.focus({ preventScroll: true }); if (saved) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(saved); } };
     const exec = (cmd, val = null, css = false) => {
       restore();
       try { document.execCommand('styleWithCSS', false, css); } catch { /* noop */ }
       document.execCommand(cmd, false, val);
       try { document.execCommand('styleWithCSS', false, false); } catch { /* noop */ }
-      save(); sync();
+      save(true); sync();
     };
     const sync = () => area.classList.toggle('is-empty', !area.textContent.trim());
-    const onSel = () => { if (document.activeElement === area) save(); };
+    // 범위를 넓힌 선택만 담음 (커서 이동은 keyup·mouseup·touchend 로)
+    const onSel = () => { if (document.activeElement === area && !window.getSelection().isCollapsed) save(); };
+    area.addEventListener('keyup', () => save());
+    area.addEventListener('mouseup', () => save());
+    area.addEventListener('touchend', () => setTimeout(() => save(), 50));
     document.addEventListener('selectionchange', onSel);
     new MutationObserver(() => { if (!document.body.contains(box)) document.removeEventListener('selectionchange', onSel); }).observe(document.body, { childList: true });
     area.addEventListener('input', sync);
@@ -84,6 +93,11 @@ function bindRich(w) {
     });
     const bar = box.querySelector('.rich-bar');
     bar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+    bar.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('button')) return;
+      save(); holding = true; clearTimeout(holdTimer); holdTimer = setTimeout(() => { holding = false; }, 1500);
+    });
+    bar.addEventListener('click', () => { clearTimeout(holdTimer); holdTimer = setTimeout(() => { holding = false; }, 0); });
     bar.addEventListener('click', (e) => {
       const b = e.target.closest('[data-rc]'); if (!b) return;
       const c = b.dataset.rc;
@@ -116,7 +130,7 @@ function bindRich(w) {
       restore();
       if (window.getSelection().isCollapsed) document.execCommand('insertHTML', false, `<a href="${esc(url)}">${esc(url)}</a>`);
       else document.execCommand('createLink', false, url);
-      lrow.hidden = true; lrow.querySelector('input').value = ''; save(); sync();
+      lrow.hidden = true; lrow.querySelector('input').value = ''; save(true); sync();
     };
     lrow.querySelector('button').addEventListener('click', applyLink);
     lrow.querySelector('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyLink(); } });

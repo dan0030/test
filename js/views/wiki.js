@@ -538,13 +538,15 @@ export function renderEdit(root, id) {
   // ----- 서식 도구 -----
   const bar = root.querySelector('.nw-fbar');
   bar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+  // 버튼을 누르는 순간(특히 모바일)의 선택 변화가 드래그한 범위를 덮어쓰지 않게 잠깐 붙잡아 둠
+  bar.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) { E.syncSelection(); E.hold(); } });
   bar.addEventListener('change', (e) => {
     if (e.target.dataset.sel === 'size' && e.target.value) { E.fontSize(`${e.target.value}px`); syncActive(); e.target.value = ''; }
   });
   bar.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-a]'); if (!b) return;
     const a = b.dataset.a;
-    E.saveSelection();
+    E.syncSelection();
     const needHost = !['wikilink'].includes(a);
     if (needHost && !E.activeHost() && !['undo', 'redo'].includes(a)) return toast('먼저 문서 본문을 눌러 커서를 두세요');
     switch (a) {
@@ -604,6 +606,7 @@ export function renderEdit(root, id) {
       default:
     }
   });
+  bar.addEventListener('click', () => E.release());
 
   async function figureDialog(cur) {
     const snap = E.snapshot();
