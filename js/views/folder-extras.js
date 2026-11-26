@@ -59,24 +59,30 @@ function docPhotos(folderId) {
   return out;
 }
 
-export function photoCount(d, folderId) { return (d.photos || []).length + (folderId ? docPhotos(folderId).length : 0); }
+// 커미션 탭에 올린 작업물(받은 그림)
+const wishPhotos = (d) => (d.wishes || []).flatMap((w) => (w.works || []).map((x) => ({ src: x.src, wish: w })));
+
+export function photoCount(d, folderId) { return (d.photos || []).length + wishPhotos(d).length + (folderId ? docPhotos(folderId).length : 0); }
 
 export function renderPhotos(body, f, rerender, view = 'all') {
   const d = f.data;
   const own = (d.photos || []).map((p) => ({ ...p, own: true }));
   const fromDocs = docPhotos(f.id);
-  const list = view === 'own' ? own : view === 'docs' ? fromDocs : [...own, ...fromDocs];
+  const fromWish = wishPhotos(d);
+  if (view === 'wish' && !fromWish.length) view = 'all';
+  const list = view === 'own' ? own : view === 'docs' ? fromDocs : view === 'wish' ? fromWish : [...own, ...fromWish, ...fromDocs];
+  const total = own.length + fromWish.length + fromDocs.length;
   const cloud = store.mode === 'cloud';
-  syncTab(body, 'photos', 'images', '사진', own.length + fromDocs.length);
+  syncTab(body, 'photos', 'images', '사진', total);
   const seg = (k, label, n) => `<button type="button" data-view="${k}" class="${view === k ? 'on' : ''}">${label} <span class="muted">${n}</span></button>`;
   const tools = `<div class="toolbar-row ph-tools">
       <button class="btn primary" id="ph-up">${icon('upload', 16)} 사진 올리기</button>
       <button class="btn ghost" id="ph-url">${icon('link', 16)} 이미지 주소로 넣기</button>
-      <div class="seg ph-seg">${seg('all', '전체', own.length + fromDocs.length)}${seg('own', '모은 사진', own.length)}${seg('docs', '문서 속 사진', fromDocs.length)}</div>
+      <div class="seg ph-seg">${seg('all', '전체', total)}${seg('own', '모은 사진', own.length)}${fromWish.length ? seg('wish', '커미션 작업물', fromWish.length) : ''}${seg('docs', '문서 속 사진', fromDocs.length)}</div>
     </div>`;
   const card = (p, i) => `<figure class="ph-item" data-i="${i}">
       <img ${extImg(p.src)} alt="${esc(p.cap || '')}" loading="lazy">
-      ${p.own ? (p.cap ? `<figcaption>${esc(p.cap)}</figcaption>` : '') : `<figcaption class="ph-from">${icon(TYPES[p.doc.type]?.icon || 'file', 12)} ${esc(p.doc.data.title || '제목 없음')}</figcaption>`}
+      ${p.own ? (p.cap ? `<figcaption>${esc(p.cap)}</figcaption>` : '') : p.wish ? `<figcaption class="ph-from">${icon('gift', 12)} ${esc(p.wish.title || host(p.wish.url) || '커미션')}</figcaption>` : `<figcaption class="ph-from">${icon(TYPES[p.doc.type]?.icon || 'file', 12)} ${esc(p.doc.data.title || '제목 없음')}</figcaption>`}
     </figure>`;
   const empty = view === 'docs'
     ? emptyState('images', '폴더 문서에 사진이 없어요', '캐릭터 사진, 연성 표지, 본문에 넣은 사진이 여기에 자동으로 모여요.')
@@ -155,6 +161,8 @@ function lightbox(f, list, start, after) {
               ${isRef(p.src) || /^data:/.test(p.src) ? '' : `<a class="btn ghost sm" href="${esc(p.src)}" target="_blank" rel="noopener noreferrer">${icon('link', 14)} 원본</a>`}
               <button class="btn ghost sm danger" id="lb-del">${icon('trash', 14)} 지우기</button>
             </div>`
+    : p.wish ? `<div class="lb-foot"><span class="muted small">${icon('gift', 13)} '${esc(p.wish.title || host(p.wish.url) || '커미션')}' 커미션 작업물이에요.</span>
+              <a class="btn ghost sm" href="#/folder/${esc(f.id)}?tab=wish">${icon('gift', 14)} 커미션 탭으로</a></div>`
     : `<div class="lb-foot"><span class="muted small">${icon(TYPES[p.doc.type]?.icon || 'file', 13)} '${esc(p.doc.data.title || '제목 없음')}' 문서에 들어 있는 사진이에요.</span>
               <a class="btn ghost sm" href="${itemHref(p.doc)}">${icon('file-text', 14)} 문서로 가기</a></div>`}`;
         const cap = box.querySelector('#lb-cap');
@@ -220,9 +228,47 @@ async function fetchPreview(url) {
   } catch { return { error: 'network' }; }
 }
 
+
+// ---------- 날짜 · 금액 도우미 ----------
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+const dayDiff = (s) => { const [y, m, d] = s.split('-').map(Number); const [ty, tm, td] = today().split('-').map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 864e5); };
+const shortDate = (s) => (isDate(s) ? `${+s.slice(5, 7)}/${+s.slice(8, 10)}` : '');
+// 마감일 표시: D-3, D-day, 2일 지남 (받은 커미션은 표시 안 함)
+function ddayHTML(w) {
+  if (!isDate(w.dueAt) || w.status === 'done') return '';
+  const n = dayDiff(w.dueAt);
+  const label = n > 0 ? `D-${n}` : n === 0 ? 'D-day' : `${-n}일 지남`;
+  return `<span class="chip dday ${n < 0 ? 'late' : n <= 3 ? 'warn' : ''}" title="마감일 ${esc(w.dueAt)}">${icon('clock', 12)} ${label}</span>`;
+}
+const toNum = (s) => { const m = String(s || '').replace(/\s/g, '').match(/\d[\d,]*(?:\.\d+)?/); return m ? Number(m[0].replace(/,/g, '')) : NaN; };
+const won = (n) => `${n.toLocaleString('ko-KR')}원`;
+// 예전 데이터(가격 한 칸)도 가격표로 읽음
+const pricesOf = (w) => (Array.isArray(w.prices) ? w.prices : w.price ? [{ name: '', amount: w.price, pick: false }] : []);
+// 신청한 항목의 합계 (금액을 숫자로 읽을 수 있는 것만)
+function pickedTotal(w) {
+  const picked = pricesOf(w).filter((p) => p.pick);
+  const nums = picked.map((p) => toNum(p.amount)).filter((n) => Number.isFinite(n));
+  return { picked, sum: nums.reduce((a, b) => a + b, 0), counted: nums.length };
+}
+const priceLabel = (p) => [p.name, p.amount].filter(Boolean).join(' ');
+// 상태를 바꿀 때 날짜 자동 채우기
+function withStatus(w, status) {
+  const nw = { ...w, status };
+  if (status !== 'want' && !nw.appliedAt) nw.appliedAt = today();
+  if (status === 'done' && !nw.doneAt) nw.doneAt = today();
+  return nw;
+}
+
 function wishCard(w) {
   const st = STATUS[w.status] || STATUS.want;
   const site = w.site || host(w.url);
+  const prices = pricesOf(w);
+  const { picked, sum, counted } = pickedTotal(w);
+  const works = w.works || [];
+  const showPrices = prices.slice(0, 3);
+  const dates = w.status !== 'want' && (w.appliedAt || w.dueAt || w.doneAt)
+    ? `<div class="wish-dates">${w.appliedAt ? `<span>신청 ${shortDate(w.appliedAt)}</span>` : ''}${w.dueAt ? `<span>마감 ${shortDate(w.dueAt)}</span>` : ''}${w.status === 'done' && w.doneAt ? `<span>받음 ${shortDate(w.doneAt)}</span>` : ''}${ddayHTML(w)}</div>` : '';
   return `<article class="card wish ${w.status === 'done' ? 'is-done' : ''}" data-id="${esc(w.id)}">
     <a class="wish-thumb ${w.image ? '' : 'ph'}" href="${esc(w.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(w.title || site)} 열기">
       ${w.image ? `<img ${extImg(w.image)} alt="" loading="lazy">` : icon('gift', 34)}
@@ -232,7 +278,11 @@ function wishCard(w) {
         <button type="button" class="chip ${st.cls} wish-st" data-act="status" title="상태 바꾸기">${icon(st.icon, 12)} ${st.label}</button></div>
       <a class="wish-title" href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title || site || w.url)}</a>
       ${w.desc ? `<p class="wish-desc">${esc(w.desc)}</p>` : ''}
-      ${w.price || w.note ? `<div class="wish-meta">${w.price ? `<span class="chip">${esc(w.price)}</span>` : ''}${w.note ? `<span class="wish-note">${esc(w.note)}</span>` : ''}</div>` : ''}
+      ${prices.length ? `<div class="wish-meta">${showPrices.map((p) => `<span class="chip ${p.pick ? 'picked' : ''}" ${p.pick ? 'title="신청한 항목"' : ''}>${p.pick ? icon('check', 11) : ''}${esc(priceLabel(p))}</span>`).join('')}${prices.length > 3 ? `<span class="muted small">외 ${prices.length - 3}개</span>` : ''}</div>` : ''}
+      ${picked.length && counted ? `<div class="wish-sum small">신청 금액 <b>${won(sum)}</b></div>` : ''}
+      ${dates}
+      ${works.length ? `<div class="wish-works">${works.slice(0, 4).map((x) => `<img ${extImg(x.src)} alt="" loading="lazy">`).join('')}${works.length > 4 ? `<span>+${works.length - 4}</span>` : ''}</div>` : ''}
+      ${w.note ? `<div class="wish-note small">${esc(w.note)}</div>` : ''}
       <div class="wish-act">
         <button type="button" class="icon-btn sm" data-act="edit" title="수정" aria-label="수정">${icon('pencil', 15)}</button>
         <button type="button" class="icon-btn sm" data-act="del" title="지우기" aria-label="지우기">${icon('trash', 15)}</button>
@@ -241,24 +291,79 @@ function wishCard(w) {
   </article>`;
 }
 
+// 관리표: 신청·받은 커미션의 날짜·금액·작업물을 한 번에
+function manageTable(list) {
+  const rank = { asked: 0, done: 1, want: 2 };
+  const rows = [...list].sort((a, b) => {
+    const s = (rank[a.status || 'want'] ?? 2) - (rank[b.status || 'want'] ?? 2);
+    if (s) return s;
+    if ((a.status || 'want') === 'done') return (b.doneAt || '').localeCompare(a.doneAt || '');
+    return (a.dueAt || '9999').localeCompare(b.dueAt || '9999');
+  });
+  const asked = list.filter((w) => w.status === 'asked');
+  const late = asked.filter((w) => isDate(w.dueAt) && dayDiff(w.dueAt) < 0).length;
+  const soon = asked.filter((w) => isDate(w.dueAt) && dayDiff(w.dueAt) >= 0 && dayDiff(w.dueAt) <= 7).length;
+  const spent = list.filter((w) => w.status !== 'want').reduce((a, w) => a + pickedTotal(w).sum, 0);
+  const cell = (label, v) => `<td data-l="${label}"><span class="wm-v">${v || '<span class="muted">-</span>'}</span></td>`;
+  return `<div class="wm-sum">
+      <div><b>${asked.length}</b><span>진행 중</span></div>
+      <div class="${soon ? 'warn' : ''}"><b>${soon}</b><span>7일 안 마감</span></div>
+      <div class="${late ? 'late' : ''}"><b>${late}</b><span>마감 지남</span></div>
+      <div><b>${spent ? won(spent) : '-'}</b><span>신청 금액 합계</span></div>
+    </div>
+    <div class="wm-scroll"><table class="wm-table">
+      <thead><tr><th>커미션</th><th>상태</th><th>신청 항목</th><th>신청일</th><th>마감일</th><th>받은 날</th><th>작업물</th></tr></thead>
+      <tbody>${rows.map((w) => {
+    const st = STATUS[w.status] || STATUS.want;
+    const { picked, sum, counted } = pickedTotal(w);
+    const works = w.works || [];
+    return `<tr data-id="${esc(w.id)}" tabindex="0">
+          <td class="wm-title" data-l="커미션"><b>${esc(w.title || w.site || host(w.url))}</b><span class="muted small">${esc(w.site || host(w.url))}</span></td>
+          ${cell('상태', `<span class="chip ${st.cls}">${icon(st.icon, 12)} ${st.label}</span>`)}
+          ${cell('신청 항목', picked.length ? `${esc(picked.map(priceLabel).join(', '))}${counted && picked.length > 1 ? `<br><b>${won(sum)}</b>` : ''}` : '')}
+          ${cell('신청일', isDate(w.appliedAt) ? esc(w.appliedAt) : '')}
+          ${cell('마감일', isDate(w.dueAt) ? `${esc(w.dueAt)} ${ddayHTML(w)}` : '')}
+          ${cell('받은 날', w.status === 'done' && isDate(w.doneAt) ? esc(w.doneAt) : '')}
+          ${cell('작업물', works.length ? `<span class="wm-works">${works.slice(0, 3).map((x) => `<img ${extImg(x.src)} alt="" loading="lazy">`).join('')}${works.length > 3 ? `<span>+${works.length - 3}</span>` : ''}</span>` : '')}
+        </tr>`;
+  }).join('')}</tbody>
+    </table></div>
+    <p class="muted small">줄을 누르면 신청일·마감일·작업물을 고칠 수 있어요.</p>`;
+}
+
+let wishMode = 'cards';
+try { wishMode = localStorage.getItem('onote-wish-mode') === 'table' ? 'table' : 'cards'; } catch { /* noop */ }
+
 export function renderWishes(body, f, rerender, filter = 'all') {
   const list = f.data.wishes || [];
   const shown = filter === 'all' ? list : list.filter((w) => (w.status || 'want') === filter);
   syncTab(body, 'wish', 'gift', '커미션', list.length);
   const cnt = (k) => list.filter((w) => (w.status || 'want') === k).length;
   const seg = (k, label, n) => `<button type="button" data-f="${k}" class="${filter === k ? 'on' : ''}">${label} <span class="muted">${n}</span></button>`;
+  const modeSeg = `<div class="seg wm-mode"><button type="button" data-m="cards" class="${wishMode === 'cards' ? 'on' : ''}">${icon('layout-dashboard', 14)} 카드</button><button type="button" data-m="table" class="${wishMode === 'table' ? 'on' : ''}">${icon('table', 14)} 관리표</button></div>`;
   body.innerHTML = `
-    <p class="hint">${icon('info', 14)} 받고 싶은 커미션 링크를 모아두는 위시리스트예요. 링크를 넣으면 사이트 제목·설명·대표 이미지를 미리보기 카드로 보여줘요. 카드의 상태 표시를 누르면 위시 → 신청함 → 받음 순서로 바뀌어요.</p>
+    <p class="hint">${icon('info', 14)} 받고 싶은 커미션 링크를 모아두는 위시리스트예요. 가격은 항목별로 여러 개 적을 수 있고, 신청한 커미션은 신청일·마감일·작업물까지 함께 관리해요. <b>관리표</b>에서 진행 중인 커미션을 마감 순서로 한눈에 볼 수 있어요.</p>
     <div class="toolbar-row ph-tools">
       <button class="btn primary" id="w-add">${icon('plus', 16)} 커미션 링크 추가</button>
+      ${list.length ? modeSeg : ''}
       ${list.length ? `<div class="seg ph-seg">${seg('all', '전체', list.length)}${Object.entries(STATUS).map(([k, s]) => seg(k, s.label, cnt(k))).join('')}</div>` : ''}
     </div>
-    ${shown.length ? `<div class="wish-grid">${shown.map(wishCard).join('')}</div>`
+    ${shown.length ? (wishMode === 'table' ? manageTable(shown) : `<div class="wish-grid">${shown.map(wishCard).join('')}</div>`)
     : emptyState('gift', list.length ? '이 상태의 커미션이 없어요' : '커미션 위시리스트가 비어 있어요', list.length ? '' : '마음에 드는 작가님의 커미션 링크를 모아보세요. 크레페, 포스타입, X(트위터) 등 어떤 링크든 괜찮아요.')}`;
   bindBroken(body);
   const again = (fl = filter) => renderWishes(body, f, rerender, fl);
   body.querySelector('.ph-seg')?.addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (b) again(b.dataset.f); });
+  body.querySelector('.wm-mode')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    wishMode = b.dataset.m;
+    try { localStorage.setItem('onote-wish-mode', wishMode); } catch { /* noop */ }
+    again();
+  });
   const save = (fn) => update(f.id, (dd) => ({ ...dd, wishes: fn(dd.wishes || []) }), { silent: true });
+  const edit = async (w) => {
+    const nw = await wishDialog(w);
+    if (nw) { save((ws) => ws.map((x) => (x.id === w.id ? nw : x))); again(); }
+  };
   body.querySelector('#w-add').onclick = async () => {
     const w = await wishDialog();
     if (!w) return;
@@ -266,6 +371,12 @@ export function renderWishes(body, f, rerender, filter = 'all') {
     toast('위시리스트에 담았어요', 'ok');
     again(filter === 'all' || filter === w.status ? filter : 'all');
   };
+  const table = body.querySelector('.wm-table');
+  if (table) {
+    const open = (tr) => { const w = list.find((x) => x.id === tr?.dataset.id); if (w) edit(w); };
+    table.addEventListener('click', (e) => open(e.target.closest('tr[data-id]')));
+    table.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e.target.closest('tr[data-id]')); });
+  }
   body.querySelector('.wish-grid')?.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
@@ -275,14 +386,11 @@ export function renderWishes(body, f, rerender, filter = 'all') {
     if (b.dataset.act === 'status') {
       const order = Object.keys(STATUS);
       const next = order[(order.indexOf(w.status || 'want') + 1) % order.length];
-      save((ws) => ws.map((x) => (x.id === id ? { ...x, status: next } : x)));
+      save((ws) => ws.map((x) => (x.id === id ? withStatus(x, next) : x)));
       toast(`'${STATUS[next].label}'(으)로 바꿨어요`, 'ok');
       again();
     }
-    if (b.dataset.act === 'edit') {
-      const nw = await wishDialog(w);
-      if (nw) { save((ws) => ws.map((x) => (x.id === id ? nw : x))); again(); }
-    }
+    if (b.dataset.act === 'edit') edit(w);
     if (b.dataset.act === 'del') {
       if (!(await confirmBox(`'${w.title || host(w.url)}'을(를) 위시리스트에서 지울까요?`, '지우기', true))) return;
       save((ws) => ws.filter((x) => x.id !== id));
@@ -291,10 +399,16 @@ export function renderWishes(body, f, rerender, filter = 'all') {
   });
 }
 
-// 추가·수정 창: 링크 → 미리보기 불러오기 → 내용 다듬기 → 저장
+// 추가·수정 창: 링크 → 미리보기 → 가격표 → 신청 정보(신청일·마감일·받은 날·작업물) → 메모
 function wishDialog(old) {
-  const w = old ? { ...old } : { id: uuid(), url: '', title: '', desc: '', image: '', icon: '', site: '', price: '', status: 'want', note: '', at: new Date().toISOString() };
+  const base = { id: uuid(), url: '', title: '', desc: '', image: '', icon: '', site: '', status: 'want', note: '', appliedAt: '', dueAt: '', doneAt: '', works: [], at: new Date().toISOString() };
+  const w = { ...base, ...(old || {}) };
+  const prices = pricesOf(w).map((p) => ({ name: p.name || '', amount: p.amount || '', pick: !!p.pick }));
+  if (!prices.length) prices.push({ name: '', amount: '', pick: false });
+  const works = (w.works || []).map((x) => ({ ...x }));
+  let status = w.status || 'want';
   const cloud = store.mode === 'cloud';
+  const statusSeg = Object.entries(STATUS).map(([k, s]) => `<button type="button" data-s="${k}" class="${status === k ? 'on' : ''}">${s.label}</button>`).join('');
   return modal({
     title: old ? '커미션 수정' : '커미션 링크 추가',
     body: `
@@ -306,11 +420,24 @@ function wishDialog(old) {
       <label class="lbl">제목</label><input class="input" id="wd-title" maxlength="200" value="${esc(w.title)}" placeholder="예: OO작가님 반신 커미션">
       <label class="lbl">설명</label><textarea class="input" id="wd-desc" rows="2" maxlength="300">${esc(w.desc)}</textarea>
       <label class="lbl">대표 이미지 주소 <span class="muted small">(비워도 돼요)</span></label><input class="input" id="wd-img" inputmode="url" value="${esc(w.image)}" placeholder="https://…">
-      <div class="wd-row">
-        <div><label class="lbl">가격</label><input class="input" id="wd-price" maxlength="40" value="${esc(w.price)}" placeholder="예: 50,000원"></div>
-        <div><label class="lbl">상태</label><div class="seg full" id="wd-st">${Object.entries(STATUS).map(([k, s]) => `<button type="button" data-s="${k}" class="${(w.status || 'want') === k ? 'on' : ''}">${s.label}</button>`).join('')}</div></div>
-      </div>
-      <label class="lbl">메모</label><input class="input" id="wd-note" maxlength="200" value="${esc(w.note)}" placeholder="예: 오픈일 12/5, 슬롯 3개">`,
+
+      <label class="lbl">가격표 <span class="muted small">(항목별로 여러 개)</span></label>
+      <div id="wd-prices"></div>
+      <div class="wd-price-foot"><button type="button" class="btn ghost sm" id="wd-padd">${icon('plus', 14)} 가격 추가</button><span class="small" id="wd-total"></span></div>
+
+      <label class="lbl">상태</label><div class="seg full" id="wd-st">${statusSeg}</div>
+      <fieldset class="wd-apply" id="wd-apply">
+        <legend>${icon('send', 14)} 신청 정보</legend>
+        <div class="wd-dates">
+          <div><label class="lbl">신청일</label><input class="input" type="date" id="wd-applied" value="${esc(w.appliedAt)}"></div>
+          <div><label class="lbl">마감일 <span class="muted small">(완성 예정)</span></label><input class="input" type="date" id="wd-due" value="${esc(w.dueAt)}"></div>
+          <div class="wd-done-only"><label class="lbl">받은 날</label><input class="input" type="date" id="wd-done" value="${esc(w.doneAt)}"></div>
+        </div>
+        <label class="lbl">작업물 <span class="muted small">(받은 그림·중간 확인본, 사진 탭에도 모여요)</span></label>
+        <div class="wd-works" id="wd-works"></div>
+        <div class="btn-row"><button type="button" class="btn ghost sm" id="wd-wup">${icon('upload', 14)} 작업물 올리기</button><button type="button" class="btn ghost sm" id="wd-wurl">${icon('link', 14)} 주소로 넣기</button></div>
+      </fieldset>
+      <label class="lbl">메모</label><input class="input" id="wd-note" maxlength="200" value="${esc(w.note)}" placeholder="예: 오픈일 12/5, 입금 완료, 수정 1회 남음">`,
     actions: [
       { label: '취소', cls: 'ghost', value: () => null },
       {
@@ -321,14 +448,21 @@ function wishDialog(old) {
           const imgRaw = m.querySelector('#wd-img').value.trim();
           const image = imgRaw ? imgUrl(imgRaw) : '';
           if (imgRaw && !image) { toast('대표 이미지 주소를 확인해 주세요', 'error'); return false; }
-          return {
+          const sameHost = host(url) === host(w.url) || !old;
+          const out = {
             ...w, url, image,
-            icon: host(url) === host(w.url) || !old ? w.icon : '',
-            site: host(url) === host(w.url) || !old ? w.site || host(url) : host(url),
+            icon: sameHost ? w.icon : '',
+            site: sameHost ? w.site || host(url) : host(url),
             title: m.querySelector('#wd-title').value.trim(), desc: m.querySelector('#wd-desc').value.trim(),
-            price: m.querySelector('#wd-price').value.trim(), note: m.querySelector('#wd-note').value.trim(),
-            status: m.querySelector('#wd-st .on')?.dataset.s || 'want',
+            prices: prices.map((p) => ({ name: p.name.trim(), amount: p.amount.trim(), pick: status !== 'want' && p.pick })).filter((p) => p.name || p.amount),
+            note: m.querySelector('#wd-note').value.trim(),
+            status,
+            appliedAt: m.querySelector('#wd-applied').value, dueAt: m.querySelector('#wd-due').value,
+            doneAt: status === 'done' ? m.querySelector('#wd-done').value : '',
+            works,
           };
+          delete out.price; // 예전 가격 한 칸은 가격표로 옮김
+          return out;
         },
       },
     ],
@@ -341,7 +475,71 @@ function wishDialog(old) {
         const title = $m('#wd-title').value.trim();
         $m('#wd-prev').innerHTML = url ? `<div class="wd-prev">${img ? `<img ${extImg(img)} alt="">` : `<span class="ph">${icon('gift', 26)}</span>`}<div><span class="muted small">${esc(w.site || host(url))}</span><b>${esc(title || host(url))}</b></div></div>` : '';
       };
-      $m('#wd-st').addEventListener('click', (e) => { const b = e.target.closest('[data-s]'); if (!b) return; m.querySelectorAll('#wd-st button').forEach((x) => x.classList.toggle('on', x === b)); });
+      // ----- 가격표 -----
+      const drawTotal = () => {
+        const t = pickedTotal({ prices });
+        $m('#wd-total').innerHTML = status !== 'want' && t.picked.length ? (t.counted ? `신청 금액 <b>${won(t.sum)}</b>` : '') : '';
+      };
+      const drawPrices = () => {
+        const applied = status !== 'want';
+        $m('#wd-prices').innerHTML = prices.map((p, i) => `<div class="wd-price" data-i="${i}">
+            <input class="input" data-k="name" maxlength="40" placeholder="항목 (예: 반신)" value="${esc(p.name)}">
+            <input class="input" data-k="amount" maxlength="40" placeholder="가격 (예: 50,000원)" value="${esc(p.amount)}">
+            ${applied ? `<label class="wd-pick" title="신청한 항목"><input type="checkbox" data-k="pick" ${p.pick ? 'checked' : ''}> 신청</label>` : ''}
+            <button type="button" class="icon-btn sm" data-rm="${i}" aria-label="가격 지우기" title="지우기">${icon('x', 14)}</button>
+          </div>`).join('');
+        drawTotal();
+      };
+      $m('#wd-prices').addEventListener('input', (e) => {
+        const row = e.target.closest('.wd-price'); if (!row) return;
+        const p = prices[+row.dataset.i]; const k = e.target.dataset.k;
+        if (k === 'pick') p.pick = e.target.checked; else if (k) p[k] = e.target.value;
+        drawTotal();
+      });
+      $m('#wd-prices').addEventListener('click', (e) => {
+        const rm = e.target.closest('[data-rm]'); if (!rm) return;
+        prices.splice(+rm.dataset.rm, 1);
+        if (!prices.length) prices.push({ name: '', amount: '', pick: false });
+        drawPrices();
+      });
+      $m('#wd-padd').onclick = () => { prices.push({ name: '', amount: '', pick: false }); drawPrices(); $m('#wd-prices .wd-price:last-child input')?.focus(); };
+      // ----- 상태 · 신청 정보 -----
+      const drawApply = () => {
+        $m('#wd-apply').hidden = status === 'want';
+        $m('.wd-done-only').hidden = status !== 'done';
+      };
+      $m('#wd-st').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-s]'); if (!b) return;
+        status = b.dataset.s;
+        m.querySelectorAll('#wd-st button').forEach((x) => x.classList.toggle('on', x === b));
+        if (status !== 'want' && !$m('#wd-applied').value) $m('#wd-applied').value = today();
+        if (status === 'done' && !$m('#wd-done').value) $m('#wd-done').value = today();
+        drawApply(); drawPrices();
+      });
+      // ----- 작업물 -----
+      const drawWorks = () => {
+        $m('#wd-works').innerHTML = works.length ? works.map((x, i) => `<div class="wd-work"><img ${extImg(x.src)} alt=""><button type="button" class="icon-btn sm" data-wrm="${i}" aria-label="작업물 지우기" title="지우기">${icon('x', 13)}</button></div>`).join('') : '<span class="muted small">아직 없어요</span>';
+      };
+      $m('#wd-works').addEventListener('click', (e) => { const b = e.target.closest('[data-wrm]'); if (b) { works.splice(+b.dataset.wrm, 1); drawWorks(); } });
+      $m('#wd-wup').onclick = async () => {
+        const files = (await pickFiles()).filter((x) => /^image\//.test(x.type));
+        for (let k = 0; k < files.length; k++) {
+          toast(files.length > 1 ? `작업물을 올리는 중… (${k + 1}/${files.length})` : '작업물을 올리는 중…');
+          try { works.push({ id: uuid(), src: await saveImage(files[k], 'content') }); drawWorks(); } catch (err) { toast(err.message || '사진을 올리지 못했어요', 'error'); break; }
+        }
+      };
+      $m('#wd-wurl').onclick = () => {
+        const row = document.createElement('div');
+        row.className = 'wd-url';
+        row.innerHTML = `<input class="input" placeholder="https://…/image.png" inputmode="url"><button type="button" class="btn ghost sm">${icon('plus', 14)} 넣기</button>`;
+        $m('#wd-wurl').closest('.btn-row').after(row);
+        const inp = row.querySelector('input');
+        const addUrl = () => { const u = imgUrl(inp.value); if (!u) { toast('이미지 주소를 확인해 주세요', 'error'); return; } works.push({ id: uuid(), src: u }); drawWorks(); row.remove(); };
+        row.querySelector('button').onclick = addUrl;
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addUrl(); } });
+        inp.focus();
+      };
+      // ----- 미리보기 -----
       ['#wd-url', '#wd-img', '#wd-title'].forEach((s) => $m(s).addEventListener('input', drawPrev));
       const run = async () => {
         const url = httpUrl($m('#wd-url').value);
@@ -362,19 +560,18 @@ function wishDialog(old) {
           return;
         }
         w.site = p.site || host(url); w.icon = p.icon;
-        // 새로 불러온 값으로 채움 (사용자가 적은 메모·가격·상태는 그대로)
         if (p.title) $m('#wd-title').value = p.title;
         if (p.desc) $m('#wd-desc').value = p.desc;
         if (p.image) $m('#wd-img').value = p.image;
-        if (p.price && !$m('#wd-price').value.trim()) $m('#wd-price').value = p.price;
+        // 사이트에 가격 정보가 있으면 빈 가격 칸에 넣음
+        if (p.price && !prices.some((x) => x.amount.trim())) { prices[0].amount = p.price; drawPrices(); }
         msg.textContent = p.title || p.image ? '미리보기를 불러왔어요. 필요하면 고쳐서 저장하세요.' : '사이트에 미리보기 정보가 거의 없어요. 제목과 이미지를 직접 적어도 돼요.';
         drawPrev();
       };
       $m('#wd-fetch').onclick = run;
       $m('#wd-url').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); run(); } });
-      // 링크를 붙여넣으면 바로 불러오기
       $m('#wd-url').addEventListener('paste', () => setTimeout(() => { if (!old && httpUrl($m('#wd-url').value)) run(); }, 0));
-      drawPrev();
+      drawPrev(); drawPrices(); drawApply(); drawWorks();
     },
   });
 }
