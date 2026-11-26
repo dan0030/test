@@ -8,6 +8,7 @@ import { pomo, onPomo, fmt, start, pause } from './pomodoro.js';
 import { installHelp, openHelp, topicForHash } from './help.js';
 import * as Home from './views/home.js';
 import * as Folders from './views/folders.js';
+import * as Extras from './views/folder-extras.js';
 import * as Wiki from './views/wiki.js';
 import * as Story from './views/story.js';
 import * as Plot from './views/plot.js';
@@ -423,6 +424,8 @@ async function signOut() {
 const NAV = [
   ['#/', 'house', '홈', '오늘의 기록과 바로가기'],
   ['#/folders', 'folder-heart', '페어 폴더', '페어별 자료 모음'],
+  ['#/photos', 'images', '사진 모음', '모든 폴더의 사진 자료'],
+  ['#/commissions', 'gift', '커미션', '위시리스트 · 신청 · 마감 관리'],
   ['#/list/character', 'contact', '캐릭터', '위키형 프로필'],
   ['#/list/world', 'globe', '세계관', '설정 문서'],
   ['#/list/story', 'book-open', '연성', '글쓰기 · E북 보기'],
@@ -577,6 +580,8 @@ function route() {
       case undefined: r = Home.renderHome(view); break;
       case 'folders': r = Folders.renderList(view); break;
       case 'folder': r = Folders.renderFolder(view, parts[1], q); break;
+      case 'photos': r = Extras.renderAllPhotos(view, q); break;
+      case 'commissions': r = Extras.renderAllWishes(view, q); break;
       case 'list':
         if (parts[1] === 'character' || parts[1] === 'world') r = Wiki.renderList(view, parts[1], q);
         else if (parts[1] === 'story') r = Story.renderList(view, q);
