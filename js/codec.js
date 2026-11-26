@@ -1,5 +1,5 @@
 // 저장 형식 코덱: 큰 기록은 gzip으로 압축한 뒤(보안 금고를 켰다면 그 다음 암호화) 서버에 저장
-// → DB 용량과 전송량을 줄여 무료 플랜 한도 안에서 오래 버티게 함
+// → DB 용량과 전송량을 줄여 플랜 한도 안에서 여유 있게 운영
 import { encryptJSON, decryptJSON } from './crypto.js';
 
 const MIN_COMPRESS = 1200; // 이보다 작은 기록은 압축 이득이 없어 그대로 저장

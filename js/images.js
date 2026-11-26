@@ -1,5 +1,5 @@
 // O-note 이미지 저장소
-// - 이미지는 DB(500MB)가 아니라 Storage 버킷(1GB, 비공개, 본인 폴더만 접근)에 작은 WebP로 저장
+// - 이미지는 DB가 아니라 Storage 버킷(비공개, 본인 폴더만 접근)에 작은 WebP로 저장
 // - 문서에는 'oimg:<사용자ID>/<파일>' 참조만 남김 → DB 용량·전송량 절약
 // - 각 기기는 한 번 받은 이미지를 기기 캐시에 보관 → 같은 이미지를 다시 내려받지 않음
 // - 보안 금고를 켜면 이미지도 브라우저에서 암호화한 뒤 올림
@@ -8,7 +8,7 @@ import { PH, isRef, esc, toast } from './ui.js';
 import * as cache from './cache.js';
 
 const BUCKET = 'img';
-export const LIMITS = { file: 1.5 * 1024 * 1024, user: 15 * 1024 * 1024 };
+export const LIMITS = { file: 1.5 * 1024 * 1024, user: 100 * 1024 * 1024 };
 const SPEC = {
   content: { max: 1100, q: 0.72 }, // 본문 사진
   profile: { max: 720, q: 0.75 }, // 프로필
@@ -91,7 +91,7 @@ async function upload(blob, enc = !!store.vault?.key) {
   const path = `${uid()}/${name}`;
   const { error } = await store.sb.storage.from(BUCKET).upload(path, body, { contentType: body.type, cacheControl: '31536000', upsert: false });
   if (error) {
-    if (/row-level security|policy|quota|exceed/i.test(error.message)) throw new Error('사진 저장 공간(15MB)을 다 썼거나, 사이트 전체 사진 공간이 거의 찼어요. 설정 → 저장 공간에서 확인해 주세요.');
+    if (/row-level security|policy|quota|exceed/i.test(error.message)) throw new Error(`사진 저장 공간(${Math.round(LIMITS.user / 1048576)}MB)을 다 썼거나, 사이트 전체 사진 공간이 거의 찼어요. 설정 → 저장 공간에서 확인해 주세요.`);
     throw new Error(`이미지를 올리지 못했어요: ${error.message}`);
   }
   const ref = `oimg:${path}`;

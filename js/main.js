@@ -502,7 +502,7 @@ function mount() {
     if (kind === 'status') drawSync();
     if (kind === 'quota') {
       const site = store.quotaKind === 'site';
-      modal({ title: site ? '사이트 저장 공간이 거의 찼어요' : '저장 공간이 가득 찼어요', body: `<p>${site ? 'O-note 전체 무료 저장 공간이 거의 차서, 기본 할당량(1MB)을 넘긴 계정은 잠시 기록을 더 늘릴 수 없어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.' : '계정의 기록 저장 공간(5MB)을 다 썼어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.'}</p><p class="muted small">설정 → 저장 공간에서 사용량을 확인하고, 필요 없는 기록을 지우거나 백업 후 정리해 주세요. 정리하면 자동으로 다시 저장돼요.</p>`, actions: [{ label: '설정으로', cls: 'primary', value: () => { location.hash = '#/settings'; return true; } }] });
+      modal({ title: site ? '사이트 저장 공간이 거의 찼어요' : '저장 공간이 가득 찼어요', body: `<p>${site ? 'O-note 전체 저장 공간이 거의 차서, 기본 할당량(1MB)을 넘긴 계정은 잠시 기록을 더 늘릴 수 없어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.' : '계정의 기록 저장 공간(20MB)을 다 썼어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.'}</p><p class="muted small">설정 → 저장 공간에서 사용량을 확인하고, 필요 없는 기록을 지우거나 백업 후 정리해 주세요. 정리하면 자동으로 다시 저장돼요.</p>`, actions: [{ label: '설정으로', cls: 'primary', value: () => { location.hash = '#/settings'; return true; } }] });
     }
     if (kind === 'remote') {
       syncLook();
@@ -516,14 +516,14 @@ function mount() {
   window.addEventListener('beforeunload', (e) => { if (store.dirty.size || store.deleted.size) { flush(); e.preventDefault(); e.returnValue = ''; } });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); else pull(); });
   window.addEventListener('online', () => { flush(); pull({ force: true }); });
-  // 무료 전송량을 아끼기 위해 화면이 보일 때만 5분마다 확인 (바뀐 행만 받음)
+  // 전송량을 아끼기 위해 화면이 보일 때만 5분마다 확인 (바뀐 행만 받음)
   setInterval(() => { if (document.visibilityState === 'visible') { pull(); Community.refreshMailBadge(); } }, 300000);
   route();
   startImageHydrator();
   if (store.mode === 'cloud') {
     Community.refreshMailBadge();
     Admin.adminStatus().then((st) => { const a = $('#nav-admin'); if (a && st.admin) a.hidden = false; }).catch(() => {});
-    // 무료 공간 아끼기: 문서 속 큰 사진은 저장소로 옮기고, 안 쓰는 사진은 하루 한 번 정리
+    // 저장 공간 아끼기: 문서 속 큰 사진은 저장소로 옮기고, 안 쓰는 사진은 하루 한 번 정리
     setTimeout(() => { migrateInlineImages().then(() => cleanupImages()).catch(() => {}); }, 4000);
   }
 }

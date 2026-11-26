@@ -37,7 +37,7 @@
 ```
 [브라우저]  ──HTTPS──▶  [GitHub Pages]  정적 파일(HTML/CSS/JS) 호스팅 — 무료
      │
-     └────HTTPS────▶  [Supabase]  회원가입·로그인(Auth) + PostgreSQL DB — 무료 플랜으로 시작 가능
+     └────HTTPS────▶  [Supabase]  회원가입·로그인(Auth) + PostgreSQL DB — Pro 플랜
 ```
 
 - **GitHub Pages**: 사이트 파일 호스팅. 서버 관리가 필요 없습니다.
@@ -92,9 +92,9 @@ python3 -m http.server 8000
 
 ---
 
-## 무료 플랜으로 오래 버티기 (이용자 1,000명 가정)
+## Pro 플랜 한도 안에서 운영하기 (가입자 1,000~5,000명 가정)
 
-Supabase 무료 플랜 한도: DB 500MB · 파일 저장소 1GB · 전송량(egress) 월 5GB(+캐시 5GB).
+Supabase Pro 플랜 포함량: DB 디스크 8GB · 파일 저장소 100GB · 전송량(egress) 월 250GB · MAU 10만. 사용량 상한(Spend cap)을 켜 두어 포함량을 넘어도 추가 요금 대신 사용이 제한됩니다. 매일 자동 백업(7일 보관)이 있고, 오래 안 써도 일시정지되지 않습니다.
 
 | 장치 | 효과 |
 |---|---|
@@ -103,13 +103,13 @@ Supabase 무료 플랜 한도: DB 500MB · 파일 저장소 1GB · 전송량(egr
 | **기기 사본 + 증분 동기화** | 서버 행을 저장된 형태 그대로 IndexedDB에 보관 → 다시 열 때 바뀐 행만 받음. 사진도 기기당 한 번만 내려받음. 로그아웃하면 사본 삭제 |
 | **가벼운 확인** | 다른 기기 변경 확인은 화면이 보일 때만 5분마다, 바뀐 행 목록(id·시각)만 먼저 받음. 내용이 그대로면 다시 저장하지 않음 |
 | **소프트 삭제** | 삭제는 흔적만 남겨 다른 기기가 가볍게 알아채게 하고, 30일 뒤 정리 |
-| **1인당 한도** | 글·설정 5MB(압축 후), 사진 15MB(1장 최대 1.5MB). DB 트리거·Storage 정책으로 서버에서 강제. 설정 → 저장 공간에서 사용량 확인 |
-| **사이트 전체 안전장치** | 전체 기록이 400MB, 전체 사진이 900MB를 넘으면 기본 할당량(기록 1MB · 사진 3MB)을 넘긴 계정만 더 늘리지 못함 → 몇 명 때문에 모두가 멈추는 일을 막음 (`supabase/migration_quota_v2.sql`) |
+| **1인당 한도** | 글·설정 20MB(압축 후), 사진 100MB(1장 최대 1.5MB). DB 트리거·Storage 정책으로 서버에서 강제. 설정 → 저장 공간에서 사용량 확인 |
+| **사이트 전체 안전장치** | 전체 기록이 3GB, 전체 사진이 75GB를 넘으면 기본 할당량(기록 1MB · 사진 5MB)을 넘긴 계정만 더 늘리지 못함 → 5,000명이 모두 기본 할당량을 채워도 DB 8GB·저장소 100GB 안 (`supabase/migration_quota_pro.sql`) |
 | **자동 정리** | 문서에 직접 들어간 큰 사진(붙여넣기·백업)은 저장소로 옮기고, 어디에도 쓰이지 않는 사진은 하루 한 번 삭제 |
 
-예상 가입자 500~1,000명 기준: 대부분은 한도의 일부만 쓰므로 무료 한도 안에서 운영되고, 사용이 몰려도 안전장치가 프로젝트 전체가 멈추는 것을 막습니다. 사용량은 Supabase 대시보드 → Usage에서 확인하세요.
+예상 가입자 1,000~5,000명 기준: 대부분은 한도의 일부만 쓰므로 Pro 포함량 안에서 운영되고, 사용이 몰려도 안전장치가 프로젝트 전체가 멈추는 것을 막습니다. 사용량은 Supabase 대시보드 → Usage에서 확인하세요.
 
-DB 변경 내역은 `supabase/schema.sql`(기본), `supabase/migration_free_tier.sql`(무료 플랜 최적화), `supabase/migration_quota_v2.sql`(할당량), `supabase/migration_invite_mail.sql`(초대 코드 가입 · 우편함 · 건의함 · 운영자)에 있습니다.
+DB 변경 내역은 `supabase/schema.sql`(기본), `supabase/migration_free_tier.sql`(무료 플랜 최적화), `supabase/migration_quota_v2.sql`(할당량), `supabase/migration_quota_pro.sql`(Pro 플랜 할당량), `supabase/migration_invite_mail.sql`(초대 코드 가입 · 우편함 · 건의함 · 운영자)에 있습니다.
 
 ### 초대 코드 · 우편함 · 건의함 · 운영자
 
