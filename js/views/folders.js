@@ -10,6 +10,7 @@ import { newWiki } from './wiki.js';
 import { newStory } from './story.js';
 import { newPlot } from './plot.js';
 import { quickMemo, memoBoard } from './memo.js';
+import { renderPhotos, renderWishes, photoCount } from './folder-extras.js';
 
 const PAIRTLE_PRESETS = {
   '기본 페어틀': ['상대를 부르는 호칭', '첫인상', '지금의 인상', '상대의 좋은 점', '상대의 싫은(?) 점', '상대에게 숨기고 있는 것', '질투 포인트', '스킨십 반응', '이미지 컬러', '상징하는 꽃·동물', '테마곡', '관계를 한 줄로'],
@@ -28,7 +29,7 @@ export function renderList(root) {
         <h3>${esc(f.data.title)}</h3>
         ${membersOf(f.data).length ? `<div class="fc-pair">${membersHTML(membersOf(f.data))}</div>` : ''}
         <p>${esc(f.data.desc || '')}</p>
-        <div class="fc-stats">${['character', 'world', 'story', 'plot', 'memo'].map((t) => { const c = inFolder(f.id, t).length; return c ? `<span title="${TYPES[t].label}">${icon(TYPES[t].icon, 13)} ${c}</span>` : ''; }).join('')}${n ? '' : '<span class="muted">비어 있음</span>'}</div>
+        <div class="fc-stats">${['character', 'world', 'story', 'plot', 'memo'].map((t) => { const c = inFolder(f.id, t).length; return c ? `<span title="${TYPES[t].label}">${icon(TYPES[t].icon, 13)} ${c}</span>` : ''; }).join('')}${(f.data.photos || []).length ? `<span title="사진">${icon('images', 13)} ${f.data.photos.length}</span>` : ''}${(f.data.wishes || []).length ? `<span title="커미션">${icon('gift', 13)} ${f.data.wishes.length}</span>` : ''}${n || (f.data.photos || []).length || (f.data.wishes || []).length ? '' : '<span class="muted">비어 있음</span>'}</div>
       </a>`;
     }).join('')}</div>` : emptyState('folder-heart', '아직 페어 폴더가 없어요', '최애 페어 이름으로 첫 폴더를 만들어보세요!', `<button class="btn primary" id="new2">${icon('folder-plus', 18)} 폴더 만들기</button>`)}`;
   root.querySelectorAll('#new,#new2').forEach((b) => (b.onclick = async () => { const f = await newFolderDialog(); if (f) location.hash = `#/folder/${f.id}`; }));
@@ -39,7 +40,8 @@ export function renderFolder(root, id, q) {
   if (!f || f.type !== 'folder') { root.innerHTML = emptyState('folder-x', '폴더를 찾을 수 없어요', ''); return; }
   const d = f.data;
   const tab = q.get('tab') || 'pair';
-  const tabs = [['pair', 'heart-handshake', '페어틀'], ...['character', 'world', 'story', 'plot', 'memo'].map((t) => [t, TYPES[t].icon, `${TYPES[t].label} ${inFolder(id, t).length || ''}`])];
+  const tabs = [['pair', 'heart-handshake', '페어틀'], ...['character', 'world', 'story', 'plot', 'memo'].map((t) => [t, TYPES[t].icon, `${TYPES[t].label} ${inFolder(id, t).length || ''}`]),
+    ['photos', 'images', `사진 ${photoCount(d, id) || ''}`], ['wish', 'gift', `커미션 ${(d.wishes || []).length || ''}`]];
 
   root.innerHTML = `
     <header class="folder-hero" style="--c:${d.color || '#ccc'}">
@@ -65,6 +67,8 @@ export function renderFolder(root, id, q) {
 
   const body = $('#f-body', root);
   if (tab === 'pair') return renderPairtle(body, f, () => renderFolder(root, id, q));
+  if (tab === 'photos') return renderPhotos(body, f, () => renderFolder(root, id, q));
+  if (tab === 'wish') return renderWishes(body, f, () => renderFolder(root, id, q));
   // 메모는 메모 화면과 똑같은 포스트잇 보드로
   if (tab === 'memo') { memoBoard(body, { folderId: id }); return; }
   const items = inFolder(id, tab);
