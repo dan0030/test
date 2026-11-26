@@ -6,6 +6,7 @@ import { icon, esc, modal, toast, confirmBox, download, pickFile } from '../ui.j
 import { pageHead } from '../common.js';
 import { helpBtn } from '../help.js';
 import { CONFIG } from '../config.js';
+import { PRESETS, TINTS, getLook, accentHex } from '../look.js';
 import { isEmailAccount, isUnconfirmed, refreshUser, bindEmailActions } from '../email.js';
 
 // 마지막으로 백업 파일을 받은 날 (이 브라우저 기준)
@@ -18,7 +19,7 @@ function lastBackupText() {
 }
 
 export function renderSettings(root, opts) {
-  const { signOut, setTheme, editProfile, rememberLogin, setRememberLogin } = opts;
+  const { signOut, setTheme, setLook, editProfile, rememberLogin, setRememberLogin } = opts;
   const cloud = store.mode === 'cloud';
   const vaultOn = !!store.vault;
   const theme = document.documentElement.dataset.theme || 'auto';
@@ -79,7 +80,9 @@ export function renderSettings(root, opts) {
 
       <section class="card set">
         <h3>${icon('sun-moon', 18)} 화면</h3>
+        <label class="lbl">밝기</label>
         <div class="seg" id="th">${[['auto', '시스템'], ['light', '밝게'], ['dark', '어둡게']].map(([k, n]) => `<button data-t="${k}" class="${theme === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div id="look"></div>
       </section>
 
       <section class="card set wide">
@@ -113,6 +116,32 @@ export function renderSettings(root, opts) {
     toast(e.target.checked ? '브라우저를 껐다 켜도 로그인이 유지돼요' : '브라우저를 닫으면 로그아웃돼요 (이 기기의 사본도 지웠어요)', 'ok');
     const dc = $('#devcache'); if (dc) { dc.checked = cacheEnabled(); dc.disabled = !e.target.checked; }
   });
+  // 테마 색: 프리셋 · 직접 고르기 · 배경 물들이기
+  const drawLook = () => {
+    const l = getLook(); const custom = l.accent.startsWith('#'); const hex = accentHex(l);
+    $('#look').innerHTML = `
+      <label class="lbl">테마 색</label>
+      <div class="look-sw" id="lk-sw">${PRESETS.map(([k, n, c]) => `<button type="button" data-k="${k}" class="${l.accent === k ? 'on' : ''}" style="--c:${c}" aria-pressed="${l.accent === k}"><span class="lk-dot">${l.accent === k ? icon('check', 16) : ''}</span>${n}</button>`).join('')}
+        <button type="button" class="lk-custom ${custom ? 'on' : ''}" data-k="custom" style="--c:${hex}" aria-pressed="${custom}"><span class="lk-dot">${custom ? icon('check', 16) : icon('palette', 15)}</span>직접 고르기</button></div>
+      <div class="look-custom" id="lk-cu" ${custom ? '' : 'hidden'}><input type="color" id="lk-pick" value="${hex}" aria-label="테마 색 고르기"><input class="input" id="lk-hex" value="${hex}" maxlength="7" placeholder="#7b6cf6" aria-label="색 코드"><span class="muted small">아무 색이나 골라도 글씨가 잘 보이게 자동으로 맞춰요.</span></div>
+      <label class="lbl">배경 물들이기</label>
+      <div class="seg" id="lk-tint">${TINTS.map(([v, n]) => `<button type="button" data-v="${v}" class="${l.tint === v ? 'on' : ''}">${n}</button>`).join('')}</div>
+      <div class="look-prev"><button type="button" class="btn primary sm" tabindex="-1">${icon('plus', 15)} 버튼</button><span class="btn ghost sm on" tabindex="-1">선택됨</span><a class="link" tabindex="-1">링크 글씨</a><span class="grow"></span><button type="button" class="link" id="lk-reset">${icon('rotate-ccw', 14)} 기본 색으로</button></div>`;
+  };
+  const pickLook = (patch) => { setLook({ ...getLook(), ...patch }); drawLook(); };
+  drawLook();
+  $('#look').onclick = (e) => {
+    const sw = e.target.closest('#lk-sw [data-k]');
+    if (sw) { if (sw.dataset.k === 'custom') { if (getLook().accent.startsWith('#')) return; pickLook({ accent: accentHex(getLook()) }); $('#lk-pick')?.focus(); } else pickLook({ accent: sw.dataset.k }); return; }
+    const t = e.target.closest('#lk-tint [data-v]'); if (t) { pickLook({ tint: +t.dataset.v }); return; }
+    if (e.target.closest('#lk-reset')) { setLook({ accent: 'violet', tint: 0 }); drawLook(); toast('기본 색으로 돌렸어요', 'ok'); }
+  };
+  // 색 고르기 창은 움직이는 동안 미리보기만, 손을 떼면 저장
+  $('#look').addEventListener('input', (e) => {
+    if (e.target.id === 'lk-pick') { setLook({ ...getLook(), accent: e.target.value }); $('#lk-hex').value = e.target.value; const c = $('.lk-custom'); c?.style.setProperty('--c', e.target.value); }
+    if (e.target.id === 'lk-hex') { let v = e.target.value.trim(); if (!v.startsWith('#')) v = `#${v}`; if (/^#[0-9a-f]{6}$/i.test(v)) { setLook({ ...getLook(), accent: v.toLowerCase() }); $('#lk-pick').value = v.toLowerCase(); $('.lk-custom')?.style.setProperty('--c', v); } }
+  });
+  $('#look').addEventListener('change', (e) => { if (e.target.id === 'lk-pick' || e.target.id === 'lk-hex') drawLook(); });
   $('#th').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; setTheme(b.dataset.t); root.querySelectorAll('#th button').forEach((x) => x.classList.toggle('on', x === b)); };
   $('#bk').onclick = async () => {
     toast('백업 파일을 만드는 중… (사진도 함께 담아요)');
