@@ -1066,3 +1066,21 @@ a.stat { color: var(--accent-ink); }
   .wm-table td[data-l]:not(.wm-title)::before { content: attr(data-l); flex: 0 0 64px; font-size: 12px; color: var(--sub); }
   .wm-title { padding-bottom: 6px !important; border-bottom: 1px solid var(--line) !important; margin-bottom: 4px; display: block !important; }
 }
+
+/* ---------- 사진 모음 · 커미션 (모든 폴더) ---------- */
+.fsel { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 6px; margin: 4px 0 6px; scrollbar-width: none; }
+.fsel::-webkit-scrollbar { display: none; }
+.fsel-c { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 7px 13px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--sub); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.fsel-c i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.fsel-c:hover { color: var(--text); }
+.fsel-c.on { background: var(--accent-2); border-color: var(--accent); color: var(--accent-ink); }
+.ftag { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; font-size: 11.5px; font-weight: 700; color: var(--text); background: color-mix(in srgb, var(--c) 30%, var(--surface)); padding: 1px 8px; border-radius: 99px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-ftag { position: absolute; top: 6px; left: 6px; right: 6px; pointer-events: none; }
+.wish-ftag { margin-bottom: -2px; }
+.wm-title .ftag { display: inline-flex; margin-right: 6px; vertical-align: 1px; }
+.wm-title > span.muted { display: block; }
+.fpick-list { display: grid; gap: 6px; }
+.fpick-list .act { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; }
+.fpick-list .act:hover { border-color: var(--accent); background: var(--accent-2); }
+.fpick-ic { width: 32px; height: 32px; display: grid; place-items: center; font-size: 20px; flex: none; }
+.fpick-ic .f-ico { width: 32px; height: 32px; object-fit: cover; border-radius: 8px; }

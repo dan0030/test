@@ -32,6 +32,7 @@ const HELP = {
         '한 문서를 <b>여러 폴더</b>에 넣을 수 있어요. 문서 편집 화면의 폴더 선택에서 고르면 돼요.',
         '폴더 안에서는 위쪽 탭으로 캐릭터·세계관·연성·플롯·메모·사진·커미션을 종류별로 모아봐요.',
         '폴더를 지워도 안에 있던 글은 지워지지 않고, 폴더 연결만 풀려요.',
+        '왼쪽 메뉴의 <b>사진 모음</b>과 <b>커미션</b>에서는 모든 폴더의 사진과 커미션을 한꺼번에 보고, 위쪽 폴더 버튼으로 골라 볼 수 있어요.',
       ]],
       ['페어틀이란?', [
         '두 사람(또는 여러 명)이 <b>같은 질문에 나란히 답하는 표</b>예요. 폴더의 첫 번째 탭에 있어요.',
@@ -258,7 +259,7 @@ const HELP = {
 export function topicForHash(hash = location.hash) {
   const parts = hash.replace(/^#\/?/, '').split('?')[0].split('/');
   switch (parts[0]) {
-    case 'folders': case 'folder': return 'folder';
+    case 'folders': case 'folder': case 'photos': case 'commissions': return 'folder';
     case 'list': return { character: 'wiki', world: 'wiki', story: 'story', plot: 'plot' }[parts[1]] || 'start';
     case 'w': return parts[2] === 'edit' ? 'wiki-edit' : 'wiki';
     case 's': return 'story';
