@@ -20,7 +20,7 @@
   --radius: 14px;
   --sans: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --serif: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
-  --side-w: 248px;
+  --side-w: 272px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -109,6 +109,40 @@ textarea.input { resize: vertical; line-height: 1.6; }
 .n-t b { font-size: 14px; }
 .n-t small { font-size: 11.5px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .main { flex: 1; margin-left: var(--side-w); min-width: 0; display: flex; flex-direction: column; }
+/* 좌측 메뉴 머리: 로고 + 메뉴 접기 버튼 */
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-bottom: 14px; }
+.side-head .logo { padding: 4px 10px; }
+.side-tg { display: inline-grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 0; border-radius: 10px; background: transparent; color: var(--sub); }
+.side-tg:hover { background: var(--surface-2); color: var(--text); }
+/* 카테고리 폴더: 상위 메뉴 오른쪽 화살표로 하위 메뉴를 접고 폄 */
+.grp-head { position: relative; }
+.grp-head > a { padding-right: 46px; }
+.grp-tg { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--sub); }
+.grp-tg:hover { background: var(--surface); color: var(--text); }
+.grp-tg .ic { transition: transform .2s; }
+.grp.closed .grp-tg .ic { transform: rotate(-90deg); }
+.grp-kids { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 26px; padding-left: 8px; border-left: 1.5px solid var(--line); }
+.grp.closed .grp-kids { display: none; }
+.nav a.kid { gap: 10px; padding: 5px 8px; }
+.nav a.kid .n-ic { width: 28px; height: 28px; border-radius: 8px; }
+.nav a.kid .n-t b { font-size: 13.5px; font-weight: 600; }
+.nav a.kid.on .n-t b { font-weight: 700; }
+.grp.closed.has-on > .grp-head > a { background: var(--accent-2); color: var(--accent-ink); }
+/* 좌측 메뉴 전체 접기 (PC): 아이콘만 보이는 좁은 메뉴 */
+.side, .main { transition: width .2s, margin-left .2s; }
+@media (min-width: 861px) {
+  body.side-mini { --side-w: 76px; }
+  body.side-mini .side { padding: 16px 10px; overflow-x: hidden; }
+  body.side-mini .side-head { flex-direction: column; gap: 8px; }
+  body.side-mini .side-head .logo { padding: 4px 0; width: 28px; overflow: hidden; }
+  body.side-mini .logo-mark { max-width: none; width: 109px; height: 30px; flex-shrink: 0; }
+  body.side-mini .n-t, body.side-mini .grp-tg { display: none; }
+  body.side-mini .nav a, body.side-mini .side-foot a { justify-content: center; padding: 8px 0; position: relative; }
+  body.side-mini .grp-head > a { padding-right: 0; }
+  body.side-mini .grp-kids, body.side-mini .grp.closed .grp-kids { display: flex; margin: 2px 0 6px; padding: 4px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+  body.side-mini .nav a.kid { padding: 4px 0; }
+  body.side-mini .nbadge { position: absolute; top: 2px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+}
 .top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .top .search-icon { display: none; }
 .search { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 0 12px; flex: 0 1 380px; color: var(--sub); }
@@ -555,7 +589,8 @@ body.reading .view { padding: 0; max-width: none; }
   .exp-preview { max-height: 34vh; }
 }
 @media (max-width: 860px) {
-  :root { --side-w: 280px; }
+  :root { --side-w: 300px; }
+  .side-tg { display: none; }
   .side { transform: translateX(-100%); transition: transform .25s, visibility .25s; box-shadow: none; border-right: 0; visibility: hidden; }
   .side.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.2); visibility: visible; }
   .side-back.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 39; }
