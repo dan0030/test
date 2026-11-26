@@ -1,6 +1,7 @@
 // O-note 진입점: 인증 → 데이터 로드 → 레이아웃 → 라우터
 import { CONFIG } from './config.js';
-import { store, initLocal, initCloud, onChange, unlock, flush, pull, get, clearDeviceCache } from './store.js';
+import { store, initLocal, initCloud, onChange, unlock, flush, pull, get, clearDeviceCache, settings, updateSettings } from './store.js';
+import { applyLook, saveLocalLook, getLook, normLook } from './look.js';
 import { startImageHydrator, migrateInlineImages, cleanupImages } from './images.js';
 import { icon, esc, toast, $, modal } from './ui.js';
 import { pomo, onPomo, fmt, start, pause } from './pomodoro.js';
@@ -27,6 +28,16 @@ function setTheme(t) {
   try { localStorage.setItem('onote-theme', t); } catch { /* noop */ }
 }
 try { const t = localStorage.getItem('onote-theme'); if (t && t !== 'auto') document.documentElement.dataset.theme = t; } catch { /* noop */ }
+// 테마 색: 바꾸면 이 기기와 계정 설정에 함께 저장 (다른 기기에서도 같은 색)
+function setLook(l) {
+  const n = applyLook(l); saveLocalLook(n);
+  try { updateSettings((d) => { d.look = n; }); } catch { /* 금고 잠김 등 */ }
+  return n;
+}
+// 계정에 저장된 색이 이 기기와 다르면 계정 쪽을 따름
+function syncLook() {
+  try { const a = settings().data.look; if (a && JSON.stringify(normLook(a)) !== JSON.stringify(getLook())) saveLocalLook(applyLook(a)); } catch { /* noop */ }
+}
 
 // ---------- 로그인 상태 유지 ----------
 // 켜면(기본) 로그인 정보를 브라우저 저장소에 보관 → 브라우저나 컴퓨터를 껐다 켜도 로그인 유지
@@ -425,10 +436,11 @@ const TABBAR = [['#/', 'house', '홈'], ['#/folders', 'folder-heart', '폴더'],
 // 로고: 아이콘과 'O-note' 글자를 한 장의 SVG로 그림.
 // 글자를 글꼴 대신 윤곽선(path)으로 넣어서, 기기나 설치된 글꼴과 관계없이 똑같이 보임 (Inter ExtraBold 기준)
 function logoSvg() {
-  return '<svg class="logo-mark" viewBox="0 0 145 40" role="img" aria-label="O-note"><g transform="scale(1.25)"><rect x="3" y="3" width="26" height="26" rx="8" fill="var(--accent)"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M22 7.5l3 -3" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></g><path fill="currentColor" d="M60.83 30.46C66.28 30.46 70.51 26.73 70.51 20.01C70.51 13.29 66.28 9.54 60.83 9.54C55.35 9.54 51.12 13.29 51.12 20.01C51.12 26.7 55.35 30.46 60.83 30.46ZM60.83 26.22C57.86 26.22 56.06 24.03 56.06 20.01C56.06 15.98 57.86 13.78 60.83 13.78C63.78 13.78 65.59 15.97 65.59 20.01C65.59 24.03 63.78 26.22 60.83 26.22ZM82.38 20.1H72.98V23.77H82.38ZM90.06 21.46C90.06 19.69 91.11 18.63 92.67 18.63C94.23 18.63 95.16 19.66 95.16 21.38V30.19H99.93V20.45C99.93 16.99 97.84 14.71 94.64 14.71C92.17 14.71 90.66 16.08 89.85 18.2L89.77 14.9H85.29V30.19H90.06ZM109.61 30.47C114.38 30.47 117.28 27.3 117.28 22.6C117.28 17.88 114.38 14.71 109.61 14.71C104.83 14.71 101.93 17.88 101.93 22.6C101.93 27.3 104.83 30.47 109.61 30.47ZM109.61 26.82C107.78 26.82 106.79 25.11 106.79 22.57C106.79 20.01 107.78 18.36 109.61 18.36C111.44 18.36 112.43 20.01 112.43 22.57C112.43 25.11 111.44 26.82 109.61 26.82ZM127.54 14.9H124.79V11.26H120.02V14.9H117.99V18.44H120.02V25.93C120.02 28.85 121.72 30.4 124.97 30.4C125.87 30.4 126.88 30.31 127.95 30.01L127.33 26.54C127.07 26.6 126.33 26.7 126 26.7C125.14 26.7 124.79 26.32 124.79 25.51V18.44H127.54ZM136.27 30.47C139.98 30.47 142.48 28.79 143.24 26.14L138.99 25.44C138.61 26.47 137.64 27.01 136.35 27.01C134.55 27.01 133.33 25.92 133.25 23.71H143.46V22.5C143.46 17.46 140.39 14.71 136.09 14.71C131.5 14.71 128.56 17.88 128.56 22.6C128.56 27.49 131.47 30.47 136.27 30.47ZM133.28 20.93C133.46 19.25 134.45 18.17 136.14 18.17C137.8 18.17 138.75 19.19 138.94 20.93Z"/></svg>';
+  return '<svg class="logo-mark" viewBox="0 0 145 40" role="img" aria-label="O-note"><g transform="scale(1.25)"><rect x="3" y="3" width="26" height="26" rx="8" fill="var(--accent)"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="var(--on-accent, #fff)" stroke-width="3"/><path d="M22 7.5l3 -3" stroke="var(--on-accent, #fff)" stroke-width="2.5" stroke-linecap="round"/></g><path fill="currentColor" d="M60.83 30.46C66.28 30.46 70.51 26.73 70.51 20.01C70.51 13.29 66.28 9.54 60.83 9.54C55.35 9.54 51.12 13.29 51.12 20.01C51.12 26.7 55.35 30.46 60.83 30.46ZM60.83 26.22C57.86 26.22 56.06 24.03 56.06 20.01C56.06 15.98 57.86 13.78 60.83 13.78C63.78 13.78 65.59 15.97 65.59 20.01C65.59 24.03 63.78 26.22 60.83 26.22ZM82.38 20.1H72.98V23.77H82.38ZM90.06 21.46C90.06 19.69 91.11 18.63 92.67 18.63C94.23 18.63 95.16 19.66 95.16 21.38V30.19H99.93V20.45C99.93 16.99 97.84 14.71 94.64 14.71C92.17 14.71 90.66 16.08 89.85 18.2L89.77 14.9H85.29V30.19H90.06ZM109.61 30.47C114.38 30.47 117.28 27.3 117.28 22.6C117.28 17.88 114.38 14.71 109.61 14.71C104.83 14.71 101.93 17.88 101.93 22.6C101.93 27.3 104.83 30.47 109.61 30.47ZM109.61 26.82C107.78 26.82 106.79 25.11 106.79 22.57C106.79 20.01 107.78 18.36 109.61 18.36C111.44 18.36 112.43 20.01 112.43 22.57C112.43 25.11 111.44 26.82 109.61 26.82ZM127.54 14.9H124.79V11.26H120.02V14.9H117.99V18.44H120.02V25.93C120.02 28.85 121.72 30.4 124.97 30.4C125.87 30.4 126.88 30.31 127.95 30.01L127.33 26.54C127.07 26.6 126.33 26.7 126 26.7C125.14 26.7 124.79 26.32 124.79 25.51V18.44H127.54ZM136.27 30.47C139.98 30.47 142.48 28.79 143.24 26.14L138.99 25.44C138.61 26.47 137.64 27.01 136.35 27.01C134.55 27.01 133.33 25.92 133.25 23.71H143.46V22.5C143.46 17.46 140.39 14.71 136.09 14.71C131.5 14.71 128.56 17.88 128.56 22.6C128.56 27.49 131.47 30.47 136.27 30.47ZM133.28 20.93C133.46 19.25 134.45 18.17 136.14 18.17C137.8 18.17 138.75 19.19 138.94 20.93Z"/></svg>';
 }
 
 function mount() {
+  syncLook();
   app.innerHTML = `
     <div class="shell">
       <aside class="side" id="side">
@@ -493,6 +505,7 @@ function mount() {
       modal({ title: site ? '사이트 저장 공간이 거의 찼어요' : '저장 공간이 가득 찼어요', body: `<p>${site ? 'O-note 전체 무료 저장 공간이 거의 차서, 기본 할당량(1MB)을 넘긴 계정은 잠시 기록을 더 늘릴 수 없어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.' : '계정의 기록 저장 공간(5MB)을 다 썼어요. 새로 쓴 내용이 아직 서버에 저장되지 않았어요.'}</p><p class="muted small">설정 → 저장 공간에서 사용량을 확인하고, 필요 없는 기록을 지우거나 백업 후 정리해 주세요. 정리하면 자동으로 다시 저장돼요.</p>`, actions: [{ label: '설정으로', cls: 'primary', value: () => { location.hash = '#/settings'; return true; } }] });
     }
     if (kind === 'remote') {
+      syncLook();
       // 글을 쓰는 중인 화면은 커서가 튀지 않도록 다시 그리지 않음
       const editing = /^#\/(s|read)\//.test(location.hash) || /\/edit/.test(location.hash) || document.querySelector('.modal-back');
       if (!editing) route();
@@ -578,7 +591,7 @@ function route() {
       case 'tools': r = Tools.renderTools(view, q); break;
       case 'bookmarks': r = Home.renderBookmarks(view); break;
       case 'search': r = Home.renderSearch(view, q); break;
-      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
+      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, setLook, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
       case 'privacy': r = Privacy.renderPrivacy(view); break;
       case 'mail': r = Community.renderMail(view, q); break;
       case 'suggest': r = Community.renderSuggest(view); break;
