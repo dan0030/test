@@ -8,6 +8,8 @@
   var E = {};
   var active = null;      /* 마지막으로 포커스된 편집 영역 */
   var saved  = null;      /* 저장된 Range */
+  var holding = false;    /* 도구 버튼을 누르는 동안은 선택 범위를 새로 담지 않는다 */
+  var holdTimer = null;
   var bindings = [];
   function onChange() {
     bindings.forEach(function (binding) {
@@ -32,6 +34,31 @@
     active = host;
     saved = r.cloneRange();
   };
+  /* 자동 저장(키·마우스·selectionchange): 도구 버튼을 누르는 중이면 건너뛴다.
+     모바일에서는 버튼을 누르는 순간 드래그한 범위가 풀리거나 한 단어로 줄어들 수 있는데,
+     그 순간의 선택을 담으면 서식이 띄어쓰기에서 끊긴 것처럼 일부에만 들어간다. */
+  E.syncSelection = function () { if (!holding) E.saveSelection(); };
+  E.hold = function () {
+    holding = true;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(function () { holding = false; }, 1500);
+  };
+  E.release = function () {
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(function () { holding = false; }, 0);
+  };
+  function onSelectionChange() {
+    if (holding) return;
+    var sel = window.getSelection();
+    /* 드래그로 넓힌 범위만 담는다. 커서 이동은 keyup·mouseup·touchend 가 담당하고,
+       색 고르기 창 등을 누를 때 선택이 풀려 커서만 남는 경우는 무시해야 하기 때문 */
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    var host = isEditable(sel.getRangeAt(0).commonAncestorContainer);
+    if (!host) return;
+    for (var i = 0; i < bindings.length; i++) {
+      if (bindings[i].root.contains(host)) { E.saveSelection(); return; }
+    }
+  }
   E.restoreSelection = function () {
     if (!saved) return false;
     /* 문서를 다시 그린 뒤에는 저장해 둔 범위가 떨어져 나간 노드를 가리킬 수 있다 */
@@ -291,11 +318,13 @@
   E.attach = function (rootEl, changeCb) {
     bindings.push({ root: rootEl, change: changeCb || function () {} });
     rootEl.addEventListener('paste', onPaste);
-    rootEl.addEventListener('keyup', E.saveSelection);
-    rootEl.addEventListener('mouseup', E.saveSelection);
+    document.addEventListener('selectionchange', onSelectionChange); /* 같은 함수는 한 번만 등록된다 */
+    rootEl.addEventListener('keyup', E.syncSelection);
+    rootEl.addEventListener('mouseup', E.syncSelection);
+    rootEl.addEventListener('touchend', function () { setTimeout(E.syncSelection, 50); });
     rootEl.addEventListener('focusin', function (ev) {
       var h = isEditable(ev.target);
-      if (h) { active = h; setTimeout(E.saveSelection, 0); }
+      if (h) { active = h; setTimeout(E.syncSelection, 0); }
     });
     /* summary 안에서 제목을 편집할 때 접힘 토글이 일어나지 않게 한다 */
     rootEl.addEventListener('click', function (ev) {

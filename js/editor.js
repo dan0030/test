@@ -64,7 +64,15 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
   if (!area.innerHTML.trim()) area.innerHTML = '<p><br></p>';
 
   let savedRange = null;
-  const saveSel = () => {
+  // 도구 버튼을 누르는 동안은 선택 범위를 새로 담지 않음.
+  // 모바일에서는 버튼을 누르는 순간 드래그한 범위가 풀리거나 한 단어로 줄어들 수 있어서,
+  // 그때의 선택을 담으면 서식이 띄어쓰기에서 끊긴 것처럼 일부에만 들어감
+  let holding = false;
+  let holdTimer = null;
+  const hold = () => { holding = true; clearTimeout(holdTimer); holdTimer = setTimeout(() => { holding = false; }, 1500); };
+  const release = () => { clearTimeout(holdTimer); holdTimer = setTimeout(() => { holding = false; }, 0); };
+  const saveSel = (force = false) => {
+    if (holding && force !== true) return;
     const s = window.getSelection();
     if (s.rangeCount && area.contains(s.anchorNode)) savedRange = s.getRangeAt(0).cloneRange();
   };
@@ -72,7 +80,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
     area.focus({ preventScroll: true });
     if (savedRange) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
   };
-  const exec = (cmd, val = null) => { restoreSel(); document.execCommand(cmd, false, val); changed(); };
+  const exec = (cmd, val = null) => { restoreSel(); document.execCommand(cmd, false, val); saveSel(true); changed(); };
 
   const updateCount = () => {
     const c = countText(htmlToText(area.innerHTML));
@@ -83,10 +91,16 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
   const changed = () => { updateCount(); markEmpty(); fire(); };
 
   area.addEventListener('input', changed);
-  area.addEventListener('keyup', saveSel);
-  area.addEventListener('mouseup', saveSel);
-  area.addEventListener('touchend', () => setTimeout(saveSel, 50));
-  const onSelChange = () => { if (document.activeElement === area) { saveSel(); reflectState(); } };
+  area.addEventListener('keyup', () => saveSel());
+  area.addEventListener('mouseup', () => saveSel());
+  area.addEventListener('touchend', () => setTimeout(() => saveSel(), 50));
+  // 모바일에서 손잡이로 범위를 넓히면 mouseup·touchend 가 오지 않으므로 selectionchange 로 담음.
+  // 커서만 남은(접힌) 선택은 담지 않음: 색 고르기 창 등을 누를 때 선택이 풀리는 경우가 있어서
+  const onSelChange = () => {
+    if (document.activeElement !== area) return;
+    if (!window.getSelection().isCollapsed) saveSel();
+    reflectState();
+  };
   document.addEventListener('selectionchange', onSelChange);
 
   // 붙여넣기: 위험한 태그와 외부 클래스 제거
@@ -138,6 +152,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
 
   // 툴바 클릭 시 선택 영역 유지
   $('.ed-toolbar', host).addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+  $('.ed-toolbar', host).addEventListener('pointerdown', (e) => { if (e.target.closest('button')) { saveSel(); hold(); } });
 
   $('.ed-toolbar', host).addEventListener('click', async (e) => {
     const b = e.target.closest('[data-cmd]');
@@ -163,7 +178,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
       }
       case 'ruby': {
         saveSel();
-        const base = window.getSelection().toString();
+        const base = savedRange ? savedRange.toString() : '';
         const r = await modal({
           title: '윗주(루비) 달기',
           body: `<label class="lbl">본문</label><input class="input" id="rb" value="${esc(base)}" placeholder="예: 天"><label class="lbl">윗주</label><input class="input" id="rt" placeholder="예: 하늘">`,
@@ -178,6 +193,7 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
       default: exec(cmd);
     }
   });
+  $('.ed-toolbar', host).addEventListener('click', release);
 
   $('.ed-toolbar', host).addEventListener('change', (e) => {
     const s = e.target.closest('[data-sel]');
@@ -205,8 +221,8 @@ export function createEditor(host, { html = '', onChange, placeholder = '여기�
       let val = v.dataset.v;
       if (isText && val.length === 2 && /[「『“‘〈《]/.test(val[0])) {
         // 괄호쌍: 선택 텍스트를 감싸기
-        const sel = window.getSelection().toString();
         restoreSel();
+        const sel = window.getSelection().toString();
         document.execCommand('insertText', false, val[0] + sel + val[1]);
         changed();
       } else pick(val);
