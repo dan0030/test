@@ -61,7 +61,7 @@ export function renderSettings(root, opts) {
 
       ${cloud ? `<section class="card set">
         <h3>${icon('hard-drive', 18)} 저장 공간</h3>
-        <p class="muted small">O-note는 무료로 운영돼서 한 사람당 쓸 수 있는 공간이 정해져 있어요. 글은 자동으로 압축하고, 사진은 작게 줄여 저장해요.</p>
+        <p class="muted small">모두가 쾌적하게 쓸 수 있도록 한 사람당 쓸 수 있는 공간이 정해져 있어요. 글은 자동으로 압축하고, 사진은 작게 줄여 저장해서 생각보다 훨씬 많이 담을 수 있어요.</p>
         <div id="usage" class="usage"><p class="muted small">사용량을 불러오는 중…</p></div>
         <div class="btn-row"><button class="btn ghost sm" id="gc">${icon('sparkles', 15)}<span>안 쓰는 사진 정리</span></button></div>
         <label class="check"><input type="checkbox" id="devcache" ${cacheEnabled() ? 'checked' : ''} ${rememberLogin?.() === false ? 'disabled' : ''}><span>이 기기에 기록 사본 저장 <span class="muted small">(다시 열 때 바뀐 것만 받아 빨라요. 로그아웃하면 지워져요. 여러 사람이 쓰는 컴퓨터라면 꺼두세요.)</span></span></label>
@@ -69,7 +69,7 @@ export function renderSettings(root, opts) {
 
       <section class="card set">
         <h3>${icon('archive', 18)} 백업 · 복원</h3>
-        <div class="tip-box">${icon('lightbulb', 16)}<div><b>가끔 백업 파일을 받아두세요.</b> ${cloud ? 'O-note는 무료 서버로 운영돼 서버 쪽 자동 백업이 없어요. 혹시 모를 서버 문제나 실수로 지운 기록에 대비해, 한 달에 한 번쯤 또는 중요한 글을 많이 쓴 뒤에 받아두면 안심이에요.' : '체험 모드 기록은 이 브라우저에만 있어서, 브라우저 데이터를 지우면 함께 사라져요. 자주 받아두세요.'}<br><span class="muted small" id="bk-last">${lastBackupText()}</span></div></div>
+        <div class="tip-box">${icon('lightbulb', 16)}<div><b>가끔 백업 파일을 받아두세요.</b> ${cloud ? '서버는 매일 자동 백업되지만, 사이트 전체를 되돌리는 용도라 내가 실수로 지운 기록 하나만 골라 살릴 수는 없어요. 한 달에 한 번쯤 또는 중요한 글을 많이 쓴 뒤에 받아두면 안심이에요.' : '체험 모드 기록은 이 브라우저에만 있어서, 브라우저 데이터를 지우면 함께 사라져요. 자주 받아두세요.'}<br><span class="muted small" id="bk-last">${lastBackupText()}</span></div></div>
         <p class="muted small">전체 기록을 JSON 파일로 내려받아 보관하거나, 다른 계정/체험 모드에서 불러올 수 있어요. 백업 파일은 암호화되지 않으니 안전한 곳에 보관하세요.</p>
         <div class="btn-row">
           <button class="btn ghost" id="bk">${icon('download', 16)} 백업 파일 받기</button>
@@ -160,7 +160,7 @@ export function renderSettings(root, opts) {
     const bar = (label, ic, used, limit, extra) => { const pct = Math.min(100, Math.round((used / limit) * 100)); return `<div class="u-row"><div class="u-top"><span>${icon(ic, 14)} ${label}</span><b>${kb(used)} / ${kb(limit)}</b></div><div class="progress"><div style="width:${pct}%;${pct >= 90 ? 'background:var(--danger)' : ''}"></div></div>${extra ? `<p class="muted small">${extra}</p>` : ''}</div>`; };
     const tight = u.site_db_tight || u.site_img_tight;
     box.innerHTML = bar('글·설정 기록', 'file-text', u.db_bytes, u.db_limit, '') + bar('사진', 'image', u.img_bytes, u.img_limit, `사진 ${u.img_count}장`)
-      + (tight ? `<p class="warn-box">${icon('triangle-exclamation-point', 14)} 지금 O-note 전체 무료 저장 공간이 거의 찼어요. 기본 할당량(기록 1MB · 사진 3MB)까지는 계속 쓸 수 있고, 그 이상은 공간이 생기면 다시 늘릴 수 있어요.</p>` : '');
+      + (tight ? `<p class="warn-box">${icon('triangle-exclamation-point', 14)} 지금 O-note 전체 저장 공간이 거의 찼어요. 기본 할당량(기록 1MB · 사진 5MB)까지는 계속 쓸 수 있고, 그 이상은 운영자가 공간을 늘리면 다시 쓸 수 있어요.</p>` : '');
   };
   if (cloud) drawUsage();
   $('#gc') && ($('#gc').onclick = async () => {
