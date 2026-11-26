@@ -802,6 +802,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .day-list li { --c: #7b6cf6; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
 .day-list li i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
 .day-list li > span:first-of-type { flex: 1; min-width: 0; }
+.day-list li > a[data-go] { flex: 1; min-width: 0; color: var(--text); font-weight: 600; }
+.day-list li > a[data-go]:hover { color: var(--accent-ink); text-decoration: underline; }
+.day-list li > a[data-go] ~ span { flex: none !important; }
 .day-add { display: flex; gap: 6px; margin: 12px 0 8px; }
 .day-add .input { flex: 1; }
 .proj-list li { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; display: grid; gap: 6px; }

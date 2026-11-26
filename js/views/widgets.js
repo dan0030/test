@@ -18,6 +18,19 @@ const W = () => {
 };
 const save = (fn) => updateSettings((d) => { d.widgets = d.widgets || {}; fn(d.widgets); });
 
+// 페어 폴더 커미션 탭에서 '신청함' 상태이고 마감일이 있는 커미션 (받은 커미션은 빼고)
+const COMM_COLOR = '#16a394';
+function commissionDues() {
+  const out = [];
+  all('folder').forEach((f) => (f.data.wishes || []).forEach((c) => {
+    if (c.status !== 'asked' || !/^\d{4}-\d{2}-\d{2}$/.test(c.dueAt || '')) return;
+    let host = '';
+    try { host = new URL(c.url).hostname.replace(/^www\./, ''); } catch { /* noop */ }
+    out.push({ date: c.dueAt, title: c.title || c.site || host || '커미션', folder: f.data.title || '', href: `#/folder/${f.id}?tab=wish` });
+  }));
+  return out;
+}
+
 // 매년 반복 디데이의 다음 날짜
 function nextDate(dd) {
   if (!dd.yearly) return dd.date;
@@ -88,6 +101,7 @@ export function bindWidgets(host) {
     w.ddays.filter((d) => nextDate(d) === date || d.date === date).forEach((d) => out.push({ kind: 'dday', title: `${d.title} (${dLabel(nextDate(d))})`, color: d.color || '#f07fa0' }));
     w.todos.filter((t) => t.due === date).forEach((t) => out.push({ kind: 'todo', title: `${t.done ? '✓ ' : ''}${t.text}`, color: '#8fcfe0' }));
     w.projects.filter((p) => p.deadline === date).forEach((p) => out.push({ kind: 'proj', title: `마감: ${p.title}`, color: statusOf(p.status)[2] }));
+    commissionDues().filter((c) => c.date === date).forEach((c) => out.push({ kind: 'comm', title: `커미션 마감: ${c.title}${c.folder ? ` (${c.folder})` : ''}`, color: COMM_COLOR, href: c.href }));
     return out;
   };
 
@@ -107,7 +121,7 @@ export function bindWidgets(host) {
     el.innerHTML = `${head('calendar-days', '캘린더', '날짜를 눌러 일정 보기·추가')}
       <div class="cal-nav"><button class="icon-btn sm" data-mv="-1" aria-label="이전 달">${icon('chevron-left', 16)}</button><b>${y}년 ${m + 1}월</b><button class="icon-btn sm" data-mv="1" aria-label="다음 달">${icon('chevron-right', 16)}</button><button class="link small" data-mv="0">오늘</button></div>
       <div class="cal-grid">${['일', '월', '화', '수', '목', '금', '토'].map((n, i) => `<div class="cal-h ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${n}</div>`).join('')}${cells.join('')}</div>
-      <p class="muted small cal-legend"><span><i style="background:#7b6cf6"></i>일정</span><span><i style="background:#f07fa0"></i>디데이</span><span><i style="background:#8fcfe0"></i>할 일</span><span><i style="background:#f76b15"></i>프로젝트 마감</span>${monthEv ? `<span class="grow"></span><span>이번 달 일정 ${monthEv}개</span>` : ''}</p>`;
+      <p class="muted small cal-legend"><span><i style="background:#7b6cf6"></i>일정</span><span><i style="background:#f07fa0"></i>디데이</span><span><i style="background:#8fcfe0"></i>할 일</span><span><i style="background:#f76b15"></i>프로젝트 마감</span><span><i style="background:${COMM_COLOR}"></i>커미션 마감</span>${monthEv ? `<span class="grow"></span><span>이번 달 일정 ${monthEv}개</span>` : ''}</p>`;
   };
 
   const drawProj = () => {
@@ -204,16 +218,18 @@ async function dayDialog(date, eventsOn) {
   const d = parse(date);
   const draw = (w) => {
     const ev = eventsOn(date);
-    w.querySelector('#day-list').innerHTML = ev.length ? ev.map((e) => `<li style="--c:${e.color}"><i></i><span>${esc(e.title)}</span>${e.kind === 'event' ? `<button class="icon-btn sm" data-del="${e.id}" aria-label="삭제">${icon('x', 13)}</button>` : `<span class="muted small">${{ dday: '디데이', todo: '할 일', proj: '프로젝트' }[e.kind]}</span>`}</li>`).join('') : '<li class="w-empty">이 날의 일정이 없어요</li>';
+    w.querySelector('#day-list').innerHTML = ev.length ? ev.map((e) => `<li style="--c:${e.color}"><i></i>${e.href ? `<a href="${esc(e.href)}" data-go>${esc(e.title)}</a>` : `<span>${esc(e.title)}</span>`}${e.kind === 'event' ? `<button class="icon-btn sm" data-del="${e.id}" aria-label="삭제">${icon('x', 13)}</button>` : `<span class="muted small">${{ dday: '디데이', todo: '할 일', proj: '프로젝트', comm: '커미션' }[e.kind]}</span>`}</li>`).join('') : '<li class="w-empty">이 날의 일정이 없어요</li>';
   };
   await modal({
     title: `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${'일월화수목금토'[d.getDay()]})`,
     body: `<ul class="day-list" id="day-list"></ul>
       <form class="day-add"><input class="input" id="ev-t" placeholder="일정 추가 (예: 트위터 연재 업로드)" maxlength="60"><button class="btn primary sm">${icon('plus', 15)}<span>추가</span></button></form>
       ${colorPick('evc', '#7b6cf6', BASE_PALETTE.slice(0, 8))}`,
-    onOpen: (w) => {
+    onOpen: (w, close) => {
       bindColorPick(w, 'evc');
       draw(w);
+      // 커미션 마감 → 그 폴더의 커미션 탭으로 이동하면서 창 닫기
+      w.querySelector('#day-list').addEventListener('click', (e) => { if (e.target.closest('a[data-go]')) close(null); });
       w.querySelector('.day-add').addEventListener('submit', (e) => {
         e.preventDefault();
         const title = w.querySelector('#ev-t').value.trim(); if (!title) return;
