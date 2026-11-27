@@ -698,6 +698,17 @@ body.reading .view { padding: 0; max-width: none; }
 .cat-add .input { flex: 1; }
 button.fchip { cursor: pointer; }
 
+/* 문서 복사 · 양식 */
+.tpl-list { display: grid; gap: 8px; margin: 8px 0 4px; }
+.tpl-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.tpl-card:hover, .tpl-card:focus-visible { border-color: var(--accent); background: var(--accent-2); }
+.tpl-card > svg { flex: none; color: var(--accent-ink); }
+.tpl-card > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tpl-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-card span { color: var(--sub); font-size: 13px; }
+.tpl-card .tpl-ops { display: flex; gap: 2px; flex: none; }
+.tpl-mode { display: grid; gap: 8px; margin-top: 12px; }
+
 /* 위키 문서 (mnmwiki 엔진) */
 .wiki-bar { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
 .wb-meta { display: grid; gap: 6px; }

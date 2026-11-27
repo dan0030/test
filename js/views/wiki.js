@@ -1,6 +1,6 @@
 // 위키형 캐릭터 프로필 & 세계관 문서
 // 문서 엔진: 위키 문서 공방(mnmwiki)의 렌더러/에디터/표 도구 (vendor/nw/*) — 나무위키 형식 출력, 티스토리 붙여넣기 호환
-import { all, get, create, update, settings, updateSettings } from '../store.js';
+import { all, get, create, update, settings, updateSettings, uuid } from '../store.js';
 import { icon, esc, TYPES, emptyState, toast, pickFile, modal, confirmBox, promptBox, download, safeName, debounce, imgAttrs, isRef, PH } from '../ui.js';
 import { saveImage, inlineImages, inlineData } from '../images.js';
 import { itemCard, folderBadge, folderPicker, bindFolderPicker, bookmarkBtn, bindBookmark, commentsPanel, bindComments, tagInput, bindTags, deleteItem, pageHead, folderFilter } from '../common.js';
@@ -225,13 +225,130 @@ function downloadMnmwiki(model, name) {
   download(`${safe}.mnmwiki.json`, JSON.stringify({ app: 'mnmwiki', v: 1, name, model, updated: Date.now() }), 'application/json');
 }
 
-export function newWiki(type, folderId, title = '') {
-  const m = blankModel(type, title);
-  const d = { title, folders: folderId ? [folderId] : [], relations: [], category: '' };
+export async function newWiki(type, folderId, title = '') {
+  // 저장해 둔 양식이 있으면 어떤 양식으로 시작할지 고름
+  let tpl = 'blank';
+  if (templatesOf(type).length) { tpl = await pickTemplate(type); if (!tpl) return; }
+  const m = tpl === 'blank' ? blankModel(type, title) : clone(tpl.nw);
+  if (tpl !== 'blank' && title) m.title = esc(title);
+  const d = { title, folders: folderId ? [folderId] : [], relations: [], category: tpl === 'blank' ? '' : (catsOf(type).includes(tpl.category) ? tpl.category : '') };
   syncMeta(d, m);
   d.nw = m;
   const it = create(type, d);
+  if (tpl !== 'blank') toast(`'${tpl.name}' 양식으로 새 문서를 만들었어요`, 'ok');
   location.hash = `#/w/${it.id}/edit`;
+}
+
+// ---------------- 문서 복사 · 양식 ----------------
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const TPL_MAX = 30; // 종류(캐릭터/세계관)마다 저장할 수 있는 양식 수
+export const templatesOf = (type) => (settings().data.templates || []).filter((t) => t.type === type);
+
+// 문서를 그대로 복사해 새 문서로 (댓글·북마크는 빼고, 폴더·태그·분류·관계는 그대로)
+export function duplicateWiki(it) {
+  const d = clone(it.data);
+  const m = clone(migrate(it));
+  m.title = `${N().plainText(m.title || '').trim() ? m.title : '제목 없음'} (사본)`;
+  d.comments = []; delete d.bookmarked;
+  syncMeta(d, m);
+  d.nw = m;
+  const copy = create(it.type, d);
+  toast(`'${d.title}'을(를) 만들었어요`, 'ok');
+  location.hash = `#/w/${copy.id}/edit`;
+}
+
+// 양식용으로 내용 비우기: 프로필 항목 이름·챕터 제목·안내문·디자인은 남기고 적은 내용만 지움
+function emptyContent(m) {
+  m.title = '';
+  if (m.profile) {
+    m.profile.title = ''; m.profile.subtitle = ''; m.profile.image = ''; m.profile.imageCaption = '';
+    (m.profile.groups || []).forEach((g) => (g.rows || []).forEach((r) => { r.value = ''; }));
+  }
+  walk(m.chapters, (c) => { c.body = '<p><br></p>'; });
+  return m;
+}
+
+export async function saveAsTemplate(it) {
+  const list = templatesOf(it.type);
+  if (list.length >= TPL_MAX) { toast(`양식은 ${TPL_MAX}개까지 저장할 수 있어요. 안 쓰는 양식을 지워주세요.`, 'error'); return; }
+  const res = await modal({
+    title: '양식으로 저장',
+    body: `<p class="muted small">${icon('info', 13)} 새 ${TYPES[it.type].label} 문서를 만들 때 이 양식을 골라 바로 시작할 수 있어요.</p>
+      <label class="lbl"><span>양식 이름</span></label>
+      <input class="input" id="tp-name" maxlength="40" value="${esc(`${it.data.title || '문서'} 양식`)}">
+      <div class="tpl-mode">
+        <label class="check"><input type="radio" name="tp-mode" value="empty" checked><span><b>틀만 저장</b> · 프로필 항목 이름, 챕터 제목, 디자인만 남기고 적은 내용은 비워요</span></label>
+        <label class="check"><input type="radio" name="tp-mode" value="full"><span><b>내용까지 저장</b> · 지금 문서를 그대로 양식으로 써요</span></label>
+      </div>`,
+    actions: [{ label: '취소', cls: 'ghost', value: () => null }, { label: '저장', cls: 'primary', icon: 'check', value: (w) => {
+      const name = w.querySelector('#tp-name').value.trim();
+      if (!name) { toast('양식 이름을 적어주세요'); return false; }
+      return { name, mode: w.querySelector('[name=tp-mode]:checked').value };
+    } }],
+  });
+  if (!res) return;
+  const m = clone(migrate(it));
+  if (res.mode === 'empty') emptyContent(m);
+  updateSettings((d) => { d.templates = [...(d.templates || []), { id: uuid(), type: it.type, name: res.name, category: it.data.category || '', nw: m, at: new Date().toISOString() }]; });
+  toast(`'${res.name}' 양식을 저장했어요. 새 문서를 만들 때 고를 수 있어요.`, 'ok');
+}
+
+// 복사·양식 메뉴 (문서 보기 화면)
+async function copyMenu(it) {
+  const v = await modal({
+    title: '복사 · 양식',
+    body: `<div class="tpl-list">
+      <button class="tpl-card" data-v="dup">${icon('copy', 20)}<div><b>복사본 만들기</b><span>이 문서를 똑같이 복사한 새 문서를 만들어요.</span></div></button>
+      <button class="tpl-card" data-v="tpl">${icon('layout-template', 20)}<div><b>양식으로 저장</b><span>이 문서의 틀을 저장해 두고 새 문서를 만들 때 계속 써요.</span></div></button>
+    </div>`,
+    onOpen: (w, close) => w.querySelector('.tpl-list').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) close(b.dataset.v); }),
+  });
+  if (v === 'dup') duplicateWiki(it);
+  if (v === 'tpl') saveAsTemplate(it);
+}
+
+// 새 문서를 만들 때 양식 고르기 (manage: 목록 화면의 '양식 관리' — 고르기 대신 이름 바꾸기·삭제만)
+export function pickTemplate(type, { manage = false } = {}) {
+  const label = TYPES[type].label;
+  const draw = (w) => {
+    const list = templatesOf(type);
+    w.querySelector('.tpl-list').innerHTML = `${manage ? '' : `<button class="tpl-card" data-pick="blank">${icon('file-text', 20)}<div><b>빈 문서</b><span>기본 틀로 새로 시작해요.</span></div></button>`}
+      ${list.map((t) => `<div class="tpl-card" ${manage ? '' : `data-pick="${t.id}" role="button" tabindex="0"`}>${icon('layout-template', 20)}<div><b>${esc(t.name)}</b><span>${esc(t.category || '분류 없음')} · ${esc((t.at || '').slice(0, 10))}</span></div>
+        <span class="tpl-ops"><button class="icon-btn sm" data-ren="${t.id}" title="이름 바꾸기" aria-label="이름 바꾸기">${icon('pencil', 14)}</button><button class="icon-btn sm" data-rm="${t.id}" title="삭제" aria-label="삭제">${icon('trash', 14)}</button></span></div>`).join('')}
+      ${manage && !list.length ? `<p class="muted small">아직 저장한 양식이 없어요.</p>` : ''}`;
+  };
+  return modal({
+    title: manage ? `${label} 양식 관리` : `새 ${label} 문서`,
+    body: `${manage ? `<p class="muted small">${icon('info', 13)} 문서 보기 화면의 <b>복사·양식</b> 버튼에서 지금 문서를 양식으로 저장할 수 있어요.</p>` : `<p class="muted small">어떤 양식으로 시작할까요?</p>`}<div class="tpl-list"></div>`,
+    onOpen: (w, close) => {
+      draw(w);
+      const find = (id) => templatesOf(type).find((t) => t.id === id);
+      const box = w.querySelector('.tpl-list');
+      box.addEventListener('click', async (e) => {
+        const ren = e.target.closest('[data-ren]'); const rm = e.target.closest('[data-rm]');
+        if (ren) {
+          e.stopPropagation();
+          const t = find(ren.dataset.ren); if (!t) return;
+          const name = await promptBox('양식 이름 바꾸기', '양식 이름', t.name);
+          if (name) { updateSettings((d) => { const x = (d.templates || []).find((y) => y.id === t.id); if (x) x.name = name.slice(0, 40); }); draw(w); }
+          return;
+        }
+        if (rm) {
+          e.stopPropagation();
+          const t = find(rm.dataset.rm); if (!t) return;
+          if (await confirmBox(`'${t.name}' 양식을 삭제할까요? 이 양식으로 만든 문서는 지워지지 않아요.`, '삭제', true)) {
+            updateSettings((d) => { d.templates = (d.templates || []).filter((y) => y.id !== t.id); });
+            draw(w);
+            if (!manage && !templatesOf(type).length) close('blank');
+          }
+          return;
+        }
+        const p = e.target.closest('[data-pick]');
+        if (p) close(p.dataset.pick === 'blank' ? 'blank' : find(p.dataset.pick) || null);
+      });
+      box.addEventListener('keydown', (e) => { const p = e.target.closest('[data-pick]'); if (p && e.target === p && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); p.click(); } });
+    },
+  });
 }
 
 // ---------------- 목록 ----------------
@@ -245,7 +362,7 @@ export function renderList(root, type, q) {
   else if (cat) items = items.filter((i) => i.data.category === cat);
   const cats = catsOf(type);
   const base = `#/list/${type}`;
-  const add = `<div class="btn-row"><button class="btn ghost" id="mw-import" title="mnmwiki(위키 문서 메이커)에서 저장한 문서 파일·코드 불러오기">${icon('file-up', 18)}<span>mnmwiki<span class="hide-m"> 문서</span> 불러오기</span></button><button class="btn primary" id="new">${icon('plus', 18)} 새 ${t.label} 문서</button></div>`;
+  const add = `<div class="btn-row"><button class="btn ghost" id="mw-import" title="mnmwiki(위키 문서 메이커)에서 저장한 문서 파일·코드 불러오기">${icon('file-up', 18)}<span>mnmwiki<span class="hide-m"> 문서</span> 불러오기</span></button><button class="btn ghost" id="tpl-manage" title="저장한 양식 보기·이름 바꾸기·삭제">${icon('layout-template', 18)}<span>양식<span class="hide-m"> 관리</span></span></button><button class="btn primary" id="new">${icon('plus', 18)} 새 ${t.label} 문서</button></div>`;
   root.innerHTML = `
     ${pageHead(t.icon, t.label, type === 'character' ? '나무위키처럼 정리하는 캐릭터 프로필. 프로필 표, 접히는 목차·챕터, 각주, 인용구를 지원하고 티스토리에 그대로 붙여넣을 수 있어요.' : '지역·세력·용어 등 세계관 설정을 위키 문서로 모아요. 분류는 직접 만들 수 있어요.', add, 'wiki')}
     ${folderFilter(f)}
@@ -253,6 +370,7 @@ export function renderList(root, type, q) {
     ${items.length ? `<div class="grid">${items.map((i) => itemCard(i, { showType: false })).join('')}</div>` : emptyState(t.icon, `아직 ${t.label} 문서가 없어요`, type === 'character' ? '최애의 프로필부터 정리해볼까요?' : '세계관의 첫 설정을 적어보세요.', `<button class="btn primary" id="new2">${icon('plus', 18)} 첫 문서 만들기</button>`)}`;
   root.querySelectorAll('#new,#new2').forEach((b) => (b.onclick = () => newWiki(type, f)));
   root.querySelector('#mw-import').onclick = () => importMnmwiki(type, f);
+  root.querySelector('#tpl-manage').onclick = () => pickTemplate(type, { manage: true });
   root.querySelector('#cat-manage').onclick = async () => { if (await manageCats(type)) renderList(root, type, q); };
 }
 
@@ -306,6 +424,7 @@ export function renderView(root, id) {
         <a class="btn primary sm" href="#/w/${it.id}/edit">${icon('pencil', 16)}<span>편집</span></a>
         ${bookmarkBtn(it)}
         <button class="btn ghost sm" id="exp">${icon('share', 16)}<span>내보내기</span></button>
+        <button class="btn ghost sm" id="dup" title="복사본 만들기 · 양식으로 저장">${icon('copy', 16)}<span>복사·양식</span></button>
         <button class="btn ghost sm danger" id="del" title="삭제">${icon('trash', 16)}</button>
       </div>
     </div>
@@ -339,6 +458,7 @@ export function renderView(root, id) {
   bindComments(root, it, () => renderView(root, id));
   root.querySelector('#del').onclick = () => deleteItem(it, `#/list/${it.type}`);
   root.querySelector('#exp').onclick = () => openWikiExport(it, m);
+  root.querySelector('#dup').onclick = () => copyMenu(it);
 }
 
 // ---------------- 내보내기 ----------------
