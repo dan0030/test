@@ -2,6 +2,8 @@
 import { CONFIG } from './config.js';
 import { store, initLocal, initCloud, onChange, unlock, flush, pull, get, clearDeviceCache, settings, updateSettings } from './store.js';
 import { applyLook, saveLocalLook, getLook, normLook } from './look.js';
+import { applyFont, saveLocalFont, getFont, normFont, setFontClient, fontReady } from './fonts.js';
+import * as Notify from './notify.js';
 import { startImageHydrator, migrateInlineImages, cleanupImages } from './images.js';
 import { icon, esc, toast, $, modal } from './ui.js';
 import { pomo, onPomo, fmt, start, pause } from './pomodoro.js';
@@ -38,6 +40,20 @@ function setLook(l) {
 // 계정에 저장된 색이 이 기기와 다르면 계정 쪽을 따름
 function syncLook() {
   try { const a = settings().data.look; if (a && JSON.stringify(normLook(a)) !== JSON.stringify(getLook())) saveLocalLook(applyLook(a)); } catch { /* noop */ }
+}
+
+// UI 글꼴: 바꾸면 이 기기와 계정 설정에 함께 저장
+async function setFont(f) {
+  const n = await applyFont(f); saveLocalFont(n);
+  try { updateSettings((d) => { d.font = n; }); } catch { /* 금고 잠김 등 */ }
+  return n;
+}
+function syncFont() {
+  try {
+    const a = settings().data.font;
+    const want = a ? normFont(a) : getFont();
+    if (JSON.stringify(want) !== JSON.stringify(getFont()) || !fontReady(want)) applyFont(want).then((n) => saveLocalFont(n));
+  } catch { /* noop */ }
 }
 
 // ---------- 로그인 상태 유지 ----------
@@ -463,6 +479,8 @@ function logoSvg() {
 
 function mount() {
   syncLook();
+  setFontClient(store.mode === 'cloud' ? sb : null);
+  syncFont();
   app.innerHTML = `
     <div class="shell">
       <aside class="side" id="side">
@@ -547,6 +565,7 @@ function mount() {
     }
     if (kind === 'remote') {
       syncLook();
+      syncFont();
       // 글을 쓰는 중인 화면은 커서가 튀지 않도록 다시 그리지 않음
       const editing = /^#\/(s|read)\//.test(location.hash) || /\/edit/.test(location.hash) || document.querySelector('.modal-back');
       if (!editing) route();
@@ -561,6 +580,7 @@ function mount() {
   setInterval(() => { if (document.visibilityState === 'visible') { pull(); Community.refreshMailBadge(); } }, 300000);
   route();
   startImageHydrator();
+  Notify.start();
   if (store.mode === 'cloud') {
     Community.refreshMailBadge();
     Admin.adminStatus().then((st) => { const a = $('#nav-admin'); if (a && st.admin) a.hidden = false; }).catch(() => {});
@@ -636,7 +656,7 @@ function route() {
       case 'tools': r = Tools.renderTools(view, q); break;
       case 'bookmarks': r = Home.renderBookmarks(view); break;
       case 'search': r = Home.renderSearch(view, q); break;
-      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, setLook, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
+      case 'settings': r = Settings.renderSettings(view, { signOut, setTheme, setLook, setFont, rememberLogin, setRememberLogin, editProfile: async () => { const v = await profileDialog({ current: store.profile }); if (v) { store.profile = v; location.reload(); } } }); break;
       case 'privacy': r = Privacy.renderPrivacy(view); break;
       case 'mail': r = Community.renderMail(view, q); break;
       case 'suggest': r = Community.renderSuggest(view); break;

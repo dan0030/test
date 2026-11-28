@@ -1,5 +1,5 @@
 // 설정: 계정 · 보안 금고 · 백업 · 테마 · 탈퇴
-import { store, exportAll, importAll, enableVault, disableVault, lockNow, flush, all, clearDeviceCache } from '../store.js';
+import { store, exportAll, importAll, enableVault, disableVault, lockNow, flush, all, clearDeviceCache, settings, updateSettings } from '../store.js';
 import { usage, cleanupImages, migrateInlineImages, reencryptImages, deleteAllImages, inlineData } from '../images.js';
 import { cacheEnabled, setCacheEnabled } from '../cache.js';
 import { icon, esc, modal, toast, confirmBox, download, pickFile } from '../ui.js';
@@ -7,6 +7,8 @@ import { pageHead } from '../common.js';
 import { helpBtn } from '../help.js';
 import { CONFIG } from '../config.js';
 import { PRESETS, TINTS, getLook, accentHex } from '../look.js';
+import { BUILTIN, FONT_LIMITS, getFont, uploadFont, deleteFont, deleteAllFonts } from '../fonts.js';
+import * as Notify from '../notify.js';
 import { isEmailAccount, isUnconfirmed, refreshUser, bindEmailActions } from '../email.js';
 
 // 마지막으로 백업 파일을 받은 날 (이 브라우저 기준)
@@ -19,7 +21,7 @@ function lastBackupText() {
 }
 
 export function renderSettings(root, opts) {
-  const { signOut, setTheme, setLook, editProfile, rememberLogin, setRememberLogin } = opts;
+  const { signOut, setTheme, setLook, setFont, editProfile, rememberLogin, setRememberLogin } = opts;
   const cloud = store.mode === 'cloud';
   const vaultOn = !!store.vault;
   const theme = document.documentElement.dataset.theme || 'auto';
@@ -83,6 +85,19 @@ export function renderSettings(root, opts) {
         <label class="lbl">밝기</label>
         <div class="seg" id="th">${[['auto', '시스템'], ['light', '밝게'], ['dark', '어둡게']].map(([k, n]) => `<button data-t="${k}" class="${theme === k ? 'on' : ''}">${n}</button>`).join('')}</div>
         <div id="look"></div>
+        <div id="font"></div>
+      </section>
+
+      <section class="card set">
+        <h3>${icon('bell', 18)} 알림</h3>
+        <p class="muted small">할 일·일정에 알림 시각을 정해두면 그때 이 기기로 알려드려요. 기기(브라우저)마다 따로 켜야 해요.</p>
+        <div id="ntf"></div>
+        <div class="tip-box">${icon('lightbulb', 16)}<div><b>알아두세요</b>
+          <ul class="ntf-notes">
+            <li>O-note가 <b>열려 있는 동안</b> 정시에 울려요. 다른 탭을 보거나 창을 내려둬도 괜찮아요.</li>
+            <li>사이트를 완전히 닫아두면 그 시각에는 울리지 않아요. 대신 다음에 열 때 <b>놓친 알림(12시간 이내)</b>을 모아서 알려드려요.</li>
+            <li>휴대폰은 화면이 꺼지거나 앱을 오래 내려두면 늦게 울릴 수 있어요. iPhone·iPad는 <b>홈 화면에 추가한 O-note</b>에서만 알림을 받을 수 있어요.</li>
+          </ul></div></div>
       </section>
 
       <section class="card set wide">
@@ -142,6 +157,72 @@ export function renderSettings(root, opts) {
     if (e.target.id === 'lk-hex') { let v = e.target.value.trim(); if (!v.startsWith('#')) v = `#${v}`; if (/^#[0-9a-f]{6}$/i.test(v)) { setLook({ ...getLook(), accent: v.toLowerCase() }); $('#lk-pick').value = v.toLowerCase(); $('.lk-custom')?.style.setProperty('--c', v); } }
   });
   $('#look').addEventListener('change', (e) => { if (e.target.id === 'lk-pick' || e.target.id === 'lk-hex') drawLook(); });
+  // ---------- 글꼴 ----------
+  BUILTIN.forEach((b) => { if (b[4] && !document.querySelector(`link[data-font="${b[4]}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = b[4]; l.dataset.font = b[4]; document.head.appendChild(l); } });
+  const myFonts = () => { try { return settings().data.fonts || []; } catch { return []; } };
+  const drawFont = () => {
+    const cur = getFont().key; const mine = myFonts();
+    const mb = (b) => `${(b / 1048576).toFixed(1)}MB`;
+    $('#font').innerHTML = `
+      <label class="lbl">화면 글꼴</label><p class="muted small">메뉴·버튼·목록 등 사이트 화면의 글꼴이에요. 본문 편집기·E북 글꼴은 각 화면에서 따로 정해요.</p>
+      <div class="font-list">${BUILTIN.map(([k, n, d, fam]) => `<button type="button" class="font-opt ${cur === k ? 'on' : ''}" data-f="${k}" aria-pressed="${cur === k}"><b style="${fam ? `font-family:${esc(fam)}, sans-serif` : ''}">${esc(n)}</b><span style="${fam ? `font-family:${esc(fam)}, sans-serif` : ''}">가나다 Aa 123</span><small class="muted">${esc(d)}</small></button>`).join('')}
+        ${mine.map((f) => `<div class="font-opt mine ${cur === f.key ? 'on' : ''}" data-f="${esc(f.key)}" role="button" tabindex="0" aria-pressed="${cur === f.key}"><b>${esc(f.name)}</b><span data-prev="${esc(f.key)}">가나다 Aa 123</span><small class="muted">내 글꼴 · ${mb(f.size || 0)}${f.local ? ' · 이 브라우저에만' : ''}</small><button type="button" class="icon-btn sm" data-fdel="${esc(f.key)}" aria-label="${esc(f.name)} 지우기" title="지우기">${icon('trash', 13)}</button></div>`).join('')}</div>
+      <div class="btn-row"><button type="button" class="btn ghost sm" id="ft-up" ${mine.length >= FONT_LIMITS.count ? 'disabled' : ''}>${icon('upload', 15)}<span>글꼴 파일 올리기</span></button></div>
+      <p class="muted small">woff2 · woff · ttf · otf 파일, 1개 ${FONT_LIMITS.size / 1048576}MB 이하, 계정당 ${FONT_LIMITS.count}개까지 올릴 수 있어요${cloud ? ' (사진 저장 공간에 함께 포함돼요)' : ''}. 웹에서 써도 되는(라이선스가 허락된) 글꼴인지 확인해 주세요.</p>`;
+    // 내 글꼴 미리보기는 실제 글꼴을 불러와서
+    mine.forEach((f) => { if (f.key === cur) { const el = $(`[data-prev="${CSS.escape(f.key)}"]`); if (el) el.style.fontFamily = 'var(--sans)'; } });
+  };
+  drawFont();
+  const pickFont = async (key) => {
+    const f = key.startsWith('u:') ? myFonts().find((x) => x.key === key) : { key };
+    if (!f) return;
+    toast('글꼴을 바꾸는 중…');
+    const n = await setFont(f);
+    if (key.startsWith('u:') && getComputedStyle(document.documentElement).getPropertyValue('--sans').indexOf('ONoteUser') < 0) toast('글꼴 파일을 불러오지 못했어요', 'error');
+    else toast(`'${f.name || BUILTIN.find((b) => b[0] === n.key)?.[1]}' 글꼴로 바꿨어요`, 'ok');
+    drawFont();
+  };
+  $('#font').addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-fdel]');
+    if (del) {
+      const f = myFonts().find((x) => x.key === del.dataset.fdel); if (!f) return;
+      if (!(await confirmBox(`'${f.name}' 글꼴을 지울까요?`, '지우기', true))) return;
+      try { await deleteFont(f, store.sb); } catch (err) { toast(`지우지 못했어요: ${err.message}`, 'error'); return; }
+      updateSettings((d) => { d.fonts = (d.fonts || []).filter((x) => x.key !== f.key); });
+      if (getFont().key === f.key) await setFont({ key: 'default' });
+      toast('글꼴을 지웠어요', 'ok'); drawFont(); return;
+    }
+    if (e.target.closest('#ft-up')) {
+      if (myFonts().length >= FONT_LIMITS.count) { toast(`글꼴은 ${FONT_LIMITS.count}개까지 올릴 수 있어요. 하나를 지운 뒤 올려주세요.`, 'error'); return; }
+      const file = await pickFile('.woff2,.woff,.ttf,.otf');
+      if (!file) return;
+      try {
+        toast('글꼴을 확인하고 올리는 중…');
+        const f = await uploadFont(file, { sb: store.sb, uid: store.user?.id, cloud });
+        updateSettings((d) => { d.fonts = [...(d.fonts || []), f]; });
+        await pickFont(f.key);
+      } catch (err) { toast(err.message || '글꼴을 올리지 못했어요', 'error'); }
+      return;
+    }
+    const opt = e.target.closest('[data-f]'); if (opt) pickFont(opt.dataset.f);
+  });
+  $('#font').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.font-opt.mine')) { e.preventDefault(); pickFont(e.target.dataset.f); } });
+
+  // ---------- 알림 ----------
+  const drawNtf = () => {
+    const p = Notify.permission(); const on = Notify.enabled();
+    const st = p === 'unsupported' ? ['warn', Notify.needsInstall() ? '홈 화면 앱에서만 가능' : '이 브라우저는 지원 안 함'] : p === 'denied' ? ['warn', '브라우저에서 차단됨'] : on ? ['ok', '이 기기에서 켜짐'] : ['', '이 기기에서 꺼짐'];
+    $('#ntf').innerHTML = `<p><span class="chip ${st[0]}">${icon(on ? 'bell-ring' : 'bell-off', 12)} ${st[1]}</span></p>
+      ${p === 'denied' ? '<p class="muted small">주소창 왼쪽의 자물쇠(사이트 설정) → 알림 → 허용으로 바꾼 뒤 새로고침해 주세요.</p>' : ''}
+      <div class="btn-row">${on ? `<button class="btn ghost sm" id="ntf-test">${icon('bell-ring', 15)}<span>테스트 알림 보내기</span></button><button class="btn ghost sm" id="ntf-off">${icon('bell-off', 15)}<span>이 기기에서 끄기</span></button>` : p !== 'unsupported' && p !== 'denied' ? `<button class="btn primary sm" id="ntf-on">${icon('bell', 15)}<span>이 기기에서 알림 켜기</span></button>` : ''}</div>`;
+  };
+  drawNtf();
+  $('#ntf').addEventListener('click', async (e) => {
+    if (e.target.closest('#ntf-on')) { if (await Notify.enable()) toast('이 기기에서 알림을 켰어요', 'ok'); drawNtf(); }
+    if (e.target.closest('#ntf-off')) { Notify.disable(); toast('이 기기에서 알림을 껐어요', 'ok'); drawNtf(); }
+    if (e.target.closest('#ntf-test')) Notify.test();
+  });
+
   $('#th').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; setTheme(b.dataset.t); root.querySelectorAll('#th button').forEach((x) => x.classList.toggle('on', x === b)); };
   $('#bk').onclick = async () => {
     toast('백업 파일을 만드는 중… (사진도 함께 담아요)');
@@ -159,7 +240,7 @@ export function renderSettings(root, opts) {
     const kb = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.ceil(b / 1024)}KB`);
     const bar = (label, ic, used, limit, extra) => { const pct = Math.min(100, Math.round((used / limit) * 100)); return `<div class="u-row"><div class="u-top"><span>${icon(ic, 14)} ${label}</span><b>${kb(used)} / ${kb(limit)}</b></div><div class="progress"><div style="width:${pct}%;${pct >= 90 ? 'background:var(--danger)' : ''}"></div></div>${extra ? `<p class="muted small">${extra}</p>` : ''}</div>`; };
     const tight = u.site_db_tight || u.site_img_tight;
-    box.innerHTML = bar('글·설정 기록', 'file-text', u.db_bytes, u.db_limit, '') + bar('사진', 'image', u.img_bytes, u.img_limit, `사진 ${u.img_count}장`)
+    box.innerHTML = bar('글·설정 기록', 'file-text', u.db_bytes, u.db_limit, '') + bar('사진·글꼴', 'image', u.img_bytes, u.img_limit, `사진 ${u.img_count}장${(settings().data.fonts || []).filter((f) => !f.local).length ? ` · 글꼴 ${(settings().data.fonts || []).filter((f) => !f.local).length}개` : ''}`)
       + (tight ? `<p class="warn-box">${icon('triangle-exclamation-point', 14)} 지금 O-note 전체 저장 공간이 거의 찼어요. 기본 할당량(기록 1MB · 사진 5MB)까지는 계속 쓸 수 있고, 그 이상은 운영자가 공간을 늘리면 다시 쓸 수 있어요.</p>` : '');
   };
   if (cloud) drawUsage();
@@ -224,6 +305,7 @@ export function renderSettings(root, opts) {
     const ok = await modal({ title: '회원 탈퇴', body: '<p>정말 탈퇴할까요? 모든 기록이 <b>즉시 영구 삭제</b>되고 되돌릴 수 없어요.</p><p class="muted small">확인을 위해 <b>탈퇴</b>라고 입력해주세요.</p><input class="input" id="bye-in">', actions: [{ label: '취소', cls: 'ghost', value: () => null }, { label: '영구 삭제', cls: 'danger', value: (w) => (w.querySelector('#bye-in').value.trim() === '탈퇴' ? true : (toast('‘탈퇴’를 정확히 입력해주세요', 'error'), false)) }] });
     if (!ok) return;
     try { await deleteAllImages(); } catch { /* 계속 진행 */ }
+    try { await deleteAllFonts(store.sb, store.user?.id); } catch { /* 계속 진행 */ }
     const { error } = await store.sb.rpc('delete_my_account');
     await clearDeviceCache();
     if (error) return toast(`탈퇴 처리 실패: ${error.message}`, 'error');
