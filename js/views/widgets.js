@@ -2,6 +2,8 @@
 import { all, get, settings, updateSettings } from '../store.js';
 import { icon, esc, modal, toast, confirmBox, countText, htmlToText } from '../ui.js';
 import { colorPick, bindColorPick, pickedColor, BASE_PALETTE } from '../colors.js';
+import { occursOn, nextOcc, isRepeat, repeatLabel, remindLabel, isDoneOn, whenFields, bindWhen } from '../schedule.js';
+import * as Notify from '../notify.js';
 
 const wid = () => crypto.randomUUID().slice(0, 8);
 const pad = (n) => String(n).padStart(2, '0');
@@ -74,13 +76,16 @@ export function bindWidgets(host) {
 
   const drawTodo = () => {
     const el = root.querySelector('#w-todo'); if (!el) return;
-    const list = [...W().todos].sort((a, b) => (a.done - b.done) || ((a.due || '9') .localeCompare(b.due || '9')));
-    const doneN = list.filter((x) => x.done).length;
+    // 반복 할 일은 '오늘 또는 다음 차례' 날짜 기준으로 보여주고, 체크도 그 날짜에만 적용
+    const list = W().todos.map((x) => { const on = isRepeat(x) ? nextOcc(x) : x.due; return { ...x, on, isDone: isRepeat(x) ? isDoneOn(x, on) : !!x.done }; })
+      .sort((a, b) => (a.isDone - b.isDone) || ((a.on || '9').localeCompare(b.on || '9')) || ((a.time || '99').localeCompare(b.time || '99')));
+    const doneN = W().todos.filter((x) => !isRepeat(x) && x.done).length;
     el.innerHTML = `${head('list-checks', '할 일', '오늘 할 일과 마감을 챙겨요')}
-      <form class="todo-add"><input class="input" name="t" placeholder="할 일 추가 후 Enter" maxlength="100"><input class="input" type="date" name="d" title="마감일 (선택)"><button class="btn primary sm" aria-label="추가">${icon('plus', 16)}</button></form>
+      <form class="todo-add"><input class="input" name="t" placeholder="할 일 추가 후 Enter" maxlength="100"><input class="input" type="date" name="d" title="마감일 (선택)"><button type="button" class="btn ghost sm" data-more title="시간 · 반복 · 알림 정해서 추가" aria-label="시간 · 반복 · 알림 정해서 추가">${icon('bell', 16)}</button><button class="btn primary sm" aria-label="추가">${icon('plus', 16)}</button></form>
       <ul class="todo-list">${list.length ? list.map((x) => {
-        const late = !x.done && x.due && x.due < today();
-        return `<li class="${x.done ? 'done' : ''}" data-id="${x.id}"><label><input type="checkbox" ${x.done ? 'checked' : ''} data-tg><span>${esc(x.text)}</span></label>${x.due ? `<span class="chip ${late ? 'late' : ''}">${x.due === today() ? '오늘' : fmtMD(x.due)}</span>` : ''}<button class="icon-btn sm" data-del aria-label="삭제">${icon('x', 13)}</button></li>`;
+        const late = !x.isDone && x.on && x.on < today();
+        const meta = [x.time ? esc(x.time) : '', isRepeat(x) ? `${icon('repeat', 11)}${esc(repeatLabel(x.repeat))}` : '', x.remind ? `${icon('bell', 11)}${esc(remindLabel(x))}` : ''].filter(Boolean).join(' ');
+        return `<li class="${x.isDone ? 'done' : ''}" data-id="${x.id}" data-on="${x.on || ''}"><label><input type="checkbox" ${x.isDone ? 'checked' : ''} data-tg aria-label="완료"></label><button type="button" class="todo-t" data-edit title="눌러서 시간·반복·알림 바꾸기"><span>${esc(x.text)}</span>${meta ? `<small class="todo-meta">${meta}</small>` : ''}</button>${x.on ? `<span class="chip ${late ? 'late' : ''}">${x.on === today() ? '오늘' : fmtMD(x.on)}</span>` : ''}<button class="icon-btn sm" data-del aria-label="삭제">${icon('x', 13)}</button></li>`;
       }).join('') : '<li class="w-empty">할 일이 없어요. 위에 적어보세요!</li>'}</ul>
       ${doneN ? `<button class="link small" data-clear>${icon('trash', 13)} 완료한 ${doneN}개 지우기</button>` : ''}`;
   };
@@ -97,9 +102,10 @@ export function bindWidgets(host) {
 
   const eventsOn = (date) => {
     const w = W(); const out = [];
-    w.events.filter((e) => e.date === date).forEach((e) => out.push({ kind: 'event', id: e.id, title: e.title, color: e.color || '#7b6cf6' }));
+    w.events.filter((e) => occursOn(e, date)).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'))
+      .forEach((e) => out.push({ kind: 'event', id: e.id, title: `${e.time ? `${e.time} ` : ''}${e.title}`, color: e.color || '#7b6cf6', repeat: isRepeat(e), remind: !!e.remind }));
     w.ddays.filter((d) => nextDate(d) === date || d.date === date).forEach((d) => out.push({ kind: 'dday', title: `${d.title} (${dLabel(nextDate(d))})`, color: d.color || '#f07fa0' }));
-    w.todos.filter((t) => t.due === date).forEach((t) => out.push({ kind: 'todo', title: `${t.done ? '✓ ' : ''}${t.text}`, color: '#8fcfe0' }));
+    w.todos.filter((t) => occursOn(t, date)).forEach((t) => out.push({ kind: 'todo', title: `${isDoneOn(t, date) ? '✓ ' : ''}${t.time ? `${t.time} ` : ''}${t.text}`, color: '#8fcfe0' }));
     w.projects.filter((p) => p.deadline === date).forEach((p) => out.push({ kind: 'proj', title: `마감: ${p.title}`, color: statusOf(p.status)[2] }));
     commissionDues().filter((c) => c.date === date).forEach((c) => out.push({ kind: 'comm', title: `커미션 마감: ${c.title}${c.folder ? ` (${c.folder})` : ''}`, color: COMM_COLOR, href: c.href }));
     return out;
@@ -117,7 +123,8 @@ export function bindWidgets(host) {
       const dow = (first + d - 1) % 7;
       cells.push(`<button class="cal-c ${date === today() ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-date="${date}" aria-label="${m + 1}월 ${d}일${ev.length ? `, 일정 ${ev.length}개` : ''}"><span class="cal-d">${d}</span><span class="cal-dots">${ev.slice(0, 3).map((e) => `<i style="background:${e.color}"></i>`).join('')}</span></button>`);
     }
-    const monthEv = W().events.filter((e) => e.date.startsWith(`${y}-${pad(m + 1)}`)).length;
+    let monthEv = 0;
+    for (let d = 1; d <= days; d++) { const ds = `${y}-${pad(m + 1)}-${pad(d)}`; monthEv += W().events.filter((e) => occursOn(e, ds)).length; }
     el.innerHTML = `${head('calendar-days', '캘린더', '날짜를 눌러 일정 보기·추가')}
       <div class="cal-nav"><button class="icon-btn sm" data-mv="-1" aria-label="이전 달">${icon('chevron-left', 16)}</button><b>${y}년 ${m + 1}월</b><button class="icon-btn sm" data-mv="1" aria-label="다음 달">${icon('chevron-right', 16)}</button><button class="link small" data-mv="0">오늘</button></div>
       <div class="cal-grid">${['일', '월', '화', '수', '목', '금', '토'].map((n, i) => `<div class="cal-h ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${n}</div>`).join('')}${cells.join('')}</div>
@@ -145,14 +152,22 @@ export function bindWidgets(host) {
     const f = e.target.closest('.todo-add'); if (!f) return;
     e.preventDefault();
     const text = f.t.value.trim(); if (!text) return;
-    save((w) => { w.todos = [...(w.todos || []), { id: wid(), text, due: f.d.value || '', done: false }]; });
+    save((w) => { w.todos = [...(w.todos || []), { id: wid(), text, due: f.d.value || '', done: false, start: today() }]; });
     drawTodo(); drawCal();
     root.querySelector('.todo-add [name=t]')?.focus();
   });
   root.addEventListener('change', (e) => {
     const t = e.target.closest('[data-tg]'); if (!t) return;
-    const id = t.closest('[data-id]').dataset.id;
-    save((w) => { w.todos = w.todos.map((x) => (x.id === id ? { ...x, done: t.checked } : x)); });
+    const li = t.closest('[data-id]'); const id = li.dataset.id; const on = li.dataset.on;
+    save((w) => {
+      w.todos = w.todos.map((x) => {
+        if (x.id !== id) return x;
+        if (!isRepeat(x)) return { ...x, done: t.checked };
+        // 반복 할 일: 그 날짜만 완료 처리 (오래된 기록은 60개까지만 보관)
+        const dd = (x.doneDates || []).filter((d) => d !== on);
+        return { ...x, doneDates: (t.checked ? [...dd, on] : dd).sort().slice(-60) };
+      });
+    });
     drawTodo(); drawCal();
   });
   root.addEventListener('click', async (e) => {
@@ -160,7 +175,14 @@ export function bindWidgets(host) {
     if (box.id === 'w-todo') {
       const del = e.target.closest('[data-del]');
       if (del) { const id = del.closest('[data-id]').dataset.id; save((w) => { w.todos = w.todos.filter((x) => x.id !== id); }); drawTodo(); drawCal(); }
-      if (e.target.closest('[data-clear]')) { save((w) => { w.todos = w.todos.filter((x) => !x.done); }); drawTodo(); drawCal(); }
+      if (e.target.closest('[data-clear]')) { save((w) => { w.todos = w.todos.filter((x) => isRepeat(x) || !x.done); }); drawTodo(); drawCal(); }
+      if (e.target.closest('[data-more]')) {
+        const f = box.querySelector('.todo-add');
+        if (await todoDialog(null, { text: f.t.value.trim(), due: f.d.value })) { drawTodo(); drawCal(); }
+        return;
+      }
+      const ed = e.target.closest('[data-edit]');
+      if (ed && await todoDialog(W().todos.find((x) => x.id === ed.closest('[data-id]').dataset.id))) { drawTodo(); drawCal(); }
       return;
     }
     if (box.id === 'w-dday') {
@@ -218,12 +240,12 @@ async function dayDialog(date, eventsOn) {
   const d = parse(date);
   const draw = (w) => {
     const ev = eventsOn(date);
-    w.querySelector('#day-list').innerHTML = ev.length ? ev.map((e) => `<li style="--c:${e.color}"><i></i>${e.href ? `<a href="${esc(e.href)}" data-go>${esc(e.title)}</a>` : `<span>${esc(e.title)}</span>`}${e.kind === 'event' ? `<button class="icon-btn sm" data-del="${e.id}" aria-label="삭제">${icon('x', 13)}</button>` : `<span class="muted small">${{ dday: '디데이', todo: '할 일', proj: '프로젝트', comm: '커미션' }[e.kind]}</span>`}</li>`).join('') : '<li class="w-empty">이 날의 일정이 없어요</li>';
+    w.querySelector('#day-list').innerHTML = ev.length ? ev.map((e) => `<li style="--c:${e.color}"><i></i>${e.href ? `<a href="${esc(e.href)}" data-go>${esc(e.title)}</a>` : e.kind === 'event' ? `<button type="button" class="day-ev" data-ed="${e.id}" title="눌러서 수정">${esc(e.title)}${e.repeat ? icon('repeat', 12) : ''}${e.remind ? icon('bell', 12) : ''}</button>` : `<span>${esc(e.title)}</span>`}${e.kind === 'event' ? `<button class="icon-btn sm" data-del="${e.id}" aria-label="삭제">${icon('x', 13)}</button>` : `<span class="muted small">${{ dday: '디데이', todo: '할 일', proj: '프로젝트', comm: '커미션' }[e.kind]}</span>`}</li>`).join('') : '<li class="w-empty">이 날의 일정이 없어요</li>';
   };
   await modal({
     title: `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${'일월화수목금토'[d.getDay()]})`,
     body: `<ul class="day-list" id="day-list"></ul>
-      <form class="day-add"><input class="input" id="ev-t" placeholder="일정 추가 (예: 트위터 연재 업로드)" maxlength="60"><button class="btn primary sm">${icon('plus', 15)}<span>추가</span></button></form>
+      <form class="day-add"><input class="input" id="ev-t" placeholder="일정 추가 (예: 트위터 연재 업로드)" maxlength="60"><button type="button" class="btn ghost sm" data-more title="시간 · 반복 · 알림 정해서 추가">${icon('bell', 15)}<span class="hide-m">시간·반복·알림</span></button><button class="btn primary sm">${icon('plus', 15)}<span>추가</span></button></form>
       ${colorPick('evc', '#7b6cf6', BASE_PALETTE.slice(0, 8))}`,
     onOpen: (w, close) => {
       bindColorPick(w, 'evc');
@@ -236,12 +258,90 @@ async function dayDialog(date, eventsOn) {
         save((x) => { x.events = [...(x.events || []), { id: wid(), date, title, color: pickedColor(w, 'evc') || '#7b6cf6' }]; });
         w.querySelector('#ev-t').value = ''; draw(w);
       });
-      w.querySelector('#day-list').addEventListener('click', (e) => {
+      w.querySelector('[data-more]').addEventListener('click', async () => {
+        if (await eventDialog(null, { date, title: w.querySelector('#ev-t').value.trim(), color: pickedColor(w, 'evc') })) { w.querySelector('#ev-t').value = ''; draw(w); }
+      });
+      w.querySelector('#day-list').addEventListener('click', async (e) => {
+        const ed = e.target.closest('[data-ed]');
+        if (ed) { if (await eventDialog(W().events.find((x) => x.id === ed.dataset.ed))) draw(w); return; }
         const b = e.target.closest('[data-del]'); if (!b) return;
+        const cur = W().events.find((x) => x.id === b.dataset.del);
+        if (cur && isRepeat(cur)) {
+          const how = await modal({ title: '반복 일정 삭제', body: `<p><b>${esc(cur.title)}</b>은(는) ${esc(repeatLabel(cur.repeat))} 반복되는 일정이에요.</p>`, actions: [{ label: '취소', cls: 'ghost', value: () => null }, { label: '이 날만 빼기', cls: 'ghost', value: () => 'one' }, { label: '반복 전체 삭제', cls: 'danger', value: () => 'all' }] });
+          if (!how) return;
+          if (how === 'one') { save((x) => { x.events = x.events.map((ev) => (ev.id === cur.id ? { ...ev, skip: [...(ev.skip || []), date].slice(-100) } : ev)); }); draw(w); return; }
+        }
         save((x) => { x.events = x.events.filter((ev) => ev.id !== b.dataset.del); }); draw(w);
       });
     },
   });
+}
+
+// 알림을 고르면, 이 기기에서 알림이 아직 꺼져 있을 때 켜도록 안내
+function askNotify() {
+  if (Notify.enabled()) return;
+  if (Notify.needsInstall()) { toast('iPhone·iPad는 O-note를 홈 화면에 추가한 앱에서 알림을 받을 수 있어요', 'info'); return; }
+  Notify.enable().then((ok) => { if (ok) toast('이 기기에서 알림을 받도록 켰어요', 'ok'); });
+}
+const remindNote = () => (Notify.enabled() ? '' : `<p class="hint">${icon('bell-off', 14)} 이 기기에서는 아직 알림이 꺼져 있어요. 알림을 고르면 허용 여부를 물어봐요. (설정 → 알림에서도 켤 수 있어요)</p>`);
+
+async function todoDialog(cur, preset = {}) {
+  const base = cur || { text: preset.text || '', due: preset.due || '' };
+  let read;
+  const res = await modal({
+    title: cur ? '할 일 수정' : '할 일 추가',
+    body: `<label class="lbl">할 일</label><input class="input" id="td-t" value="${esc(base.text)}" placeholder="예: 원고 퇴고, 굿즈 입금" maxlength="100">
+      ${whenFields({ ...base, date: base.due }, { dateLabel: '날짜 (반복이면 시작일)', dateRequired: false })}${remindNote()}`,
+    actions: [
+      ...(cur ? [{ label: '삭제', cls: 'ghost danger', icon: 'trash', value: async () => ((await confirmBox('이 할 일을 삭제할까요?', '삭제', true)) ? 'DEL' : false) }] : []),
+      { label: '취소', cls: 'ghost', value: () => null },
+      { label: '저장', cls: 'primary', icon: 'check', value: (w) => {
+        const text = w.querySelector('#td-t').value.trim();
+        if (!text) { toast('할 일을 입력해주세요', 'error'); return false; }
+        const r = read(); if (r.error) { toast(r.error, 'error'); return false; }
+        if (r.remind && !r.date && !r.repeat) { toast('알림을 받으려면 날짜를 정해주세요', 'error'); return false; }
+        return { text, due: r.date, time: r.time, repeat: r.repeat, remind: r.remind, remindAt: r.remindAt };
+      } },
+    ],
+    onOpen: (w) => { read = bindWhen(w, { onRemindOn: askNotify }); },
+  });
+  if (!res) return false;
+  save((w) => {
+    if (res === 'DEL') w.todos = w.todos.filter((x) => x.id !== cur.id);
+    else if (cur) w.todos = w.todos.map((x) => (x.id === cur.id ? { ...x, ...res } : x));
+    else w.todos = [...(w.todos || []), { id: wid(), done: false, start: today(), ...res }];
+  });
+  return true;
+}
+
+async function eventDialog(cur, preset = {}) {
+  const base = cur || { title: preset.title || '', date: preset.date || today(), color: preset.color || '#7b6cf6' };
+  let read;
+  const res = await modal({
+    title: cur ? '일정 수정' : '일정 추가',
+    body: `<label class="lbl">일정</label><input class="input" id="ev2-t" value="${esc(base.title)}" placeholder="예: 트위터 연재 업로드" maxlength="60">
+      ${whenFields(base, { dateLabel: '날짜 (반복이면 시작일)' })}${remindNote()}
+      <label class="lbl">색상</label>${colorPick('ev2c', base.color || '#7b6cf6', BASE_PALETTE.slice(0, 8))}`,
+    actions: [
+      ...(cur ? [{ label: '삭제', cls: 'ghost danger', icon: 'trash', value: async () => ((await confirmBox(isRepeat(cur) ? '반복 일정 전체를 삭제할까요?' : '이 일정을 삭제할까요?', '삭제', true)) ? 'DEL' : false) }] : []),
+      { label: '취소', cls: 'ghost', value: () => null },
+      { label: '저장', cls: 'primary', icon: 'check', value: (w) => {
+        const title = w.querySelector('#ev2-t').value.trim();
+        if (!title) { toast('일정 이름을 입력해주세요', 'error'); return false; }
+        const r = read(); if (r.error) { toast(r.error, 'error'); return false; }
+        if (!r.date) { toast('날짜를 정해주세요', 'error'); return false; }
+        return { title, date: r.date, time: r.time, repeat: r.repeat, remind: r.remind, remindAt: r.remindAt, color: pickedColor(w, 'ev2c') || '#7b6cf6' };
+      } },
+    ],
+    onOpen: (w) => { bindColorPick(w, 'ev2c'); read = bindWhen(w, { onRemindOn: askNotify }); },
+  });
+  if (!res) return false;
+  save((w) => {
+    if (res === 'DEL') w.events = w.events.filter((x) => x.id !== cur.id);
+    else if (cur) w.events = w.events.map((x) => (x.id === cur.id ? { ...x, ...res } : x));
+    else w.events = [...(w.events || []), { id: wid(), ...res }];
+  });
+  return true;
 }
 
 async function projDialog(cur) {
