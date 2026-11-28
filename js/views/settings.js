@@ -96,7 +96,7 @@ export function renderSettings(root, opts) {
           <ul class="ntf-notes">
             <li>O-note가 <b>열려 있는 동안</b> 정시에 울려요. 다른 탭을 보거나 창을 내려둬도 괜찮아요.</li>
             <li>사이트를 완전히 닫아두면 그 시각에는 울리지 않아요. 대신 다음에 열 때 <b>놓친 알림(12시간 이내)</b>을 모아서 알려드려요.</li>
-            <li>휴대폰은 화면이 꺼지거나 앱을 오래 내려두면 늦게 울릴 수 있어요. iPhone·iPad는 <b>홈 화면에 추가한 O-note</b>에서만 알림을 받을 수 있어요.</li>
+            <li>휴대폰은 화면이 꺼지거나 앱을 오래 내려두면 늦게 울릴 수 있어요. iPhone·iPad는 <b>홈 화면에 추가한 <span style="white-space:nowrap">O-note</span></b>에서만 알림을 받을 수 있어요.</li>
           </ul></div></div>
       </section>
 
