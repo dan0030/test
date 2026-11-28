@@ -1,0 +1,58 @@
+name: Deploy O-note to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 저장소 Settings → Secrets and variables → Actions → Variables 에
+      # SUPABASE_URL, SUPABASE_ANON_KEY 를 등록하면 배포본에 자동으로 주입됩니다.
+      # (anon 키는 공개용 키라 Variables에 두어도 됩니다. service_role 키는 절대 넣지 마세요.)
+      - name: Inject Supabase config
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            node -e '
+              const fs = require("fs");
+              const p = "js/config.js";
+              let s = fs.readFileSync(p, "utf8");
+              s = s.replace(/SUPABASE_URL: .*?,/, "SUPABASE_URL: " + JSON.stringify(process.env.SUPABASE_URL) + ",");
+              s = s.replace(/SUPABASE_ANON_KEY: .*?,/, "SUPABASE_ANON_KEY: " + JSON.stringify(process.env.SUPABASE_ANON_KEY) + ",");
+              fs.writeFileSync(p, s);
+            '
+            echo "Supabase config injected"
+          else
+            echo "No Supabase variables set: site will run in trial (local) mode"
+          fi
+
+      - name: Prepare site
+        run: |
+          mkdir -p _site
+          cp -r index.html favicon.svg manifest.webmanifest .nojekyll css js vendor _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
